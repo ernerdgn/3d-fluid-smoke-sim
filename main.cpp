@@ -2,17 +2,34 @@
 #include <glad/glad.h>
 #include <glfw3.h>
 #include "shader.h"
+#include "FluidGrid.h"
 
-float quad_vertices[] = {
-	// positions      // texture coords
-	-.5f,  .5f,     0.0f, .5f,
-	-.5f, -.5f,     0.0f, 0.0f,
-	 .5f, -.5f,     .5f, 0.0f,
+//float quad_vertices[] = {
+//	// positions      // tex coords
+//	-.5f,  .5f,     0.0f, .5f,
+//	-.5f, -.5f,     0.0f, 0.0f,
+//	 .5f, -.5f,     .5f, 0.0f,
+//
+//	-.5f,  .5f,     0.0f, .5f,
+//	 .5f, -.5f,     .5f, 0.0f,
+//	 .5f,  .5f,     .5f, .5f
+//};
 
-	-.5f,  .5f,     0.0f, .5f,
-	 .5f, -.5f,     .5f, 0.0f,
-	 .5f,  .5f,     .5f, .5f
+float quad_vertices[] =
+{
+	// positions   // tex coords
+	-1.0f,  1.0f,   0.0f, 1.0f,
+	-1.0f, -1.0f,   0.0f, 0.0f,
+	 1.0f, -1.0f,   1.0f, 0.0f,
+
+	-1.0f,  1.0f,   0.0f, 1.0f,
+	 1.0f, -1.0f,   1.0f, 0.0f,
+	 1.0f,  1.0f,   1.0f, 1.0f
 };
+
+// grid size
+const int GRID_WIDTH = 256;
+const int GRID_HEIGHT = 256;
 
 int main()
 {
@@ -49,8 +66,13 @@ int main()
 	}
 
 	// viewport
-	glViewport(0, 0, 800, 600);
+	//glViewport(0, 0, 800, 600);
 
+	glfwSetWindowSize(window, GRID_WIDTH, GRID_HEIGHT);
+	glViewport(0, 0, GRID_WIDTH, GRID_HEIGHT);
+
+
+	// setup quad vao vbo
 	unsigned int VBO, VAO;
 	glGenVertexArrays(1, &VAO);
 	glGenBuffers(1, &VBO);
@@ -73,19 +95,91 @@ int main()
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindVertexArray(0);
 
-	Shader quad_shader("quad.vert", "quad.frag");
+	Shader quadShader("quad.vert", "quad.frag");
+
+	FluidGrid fluidGrid(GRID_WIDTH, GRID_HEIGHT);
+
+	// texture
+	unsigned int display_texture;
+	glGenTextures(1, &display_texture);
+	glBindTexture(GL_TEXTURE_2D, display_texture);
+
+	// tex params
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+	// allocate texture on gpu
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, GRID_WIDTH, GRID_HEIGHT, 0, GL_RED, GL_FLOAT, nullptr);
+	glBindTexture(GL_TEXTURE_2D, 0); // unbind
+
+	// mouse interaction
+	struct MouseState
+	{
+		bool pressed = false;
+		double x = 0.0;
+		double y = 0.0;
+	} mouse;
+
+	glfwSetMouseButtonCallback(window, [](GLFWwindow* window, int button, int action, int mods)
+	{
+		MouseState* mouse = (MouseState*)glfwGetWindowUserPointer(window);
+		if (button == GLFW_MOUSE_BUTTON_LEFT)
+		{
+			if (action == GLFW_PRESS)
+				mouse->pressed = true;
+			else if (action == GLFW_RELEASE)
+				mouse->pressed = false;
+		}
+	});
+
+	glfwSetCursorPosCallback(window, [](GLFWwindow* window, double xpos, double ypos)
+	{
+		MouseState* mouse = (MouseState*)glfwGetWindowUserPointer(window);
+		mouse->x = xpos;
+		mouse->y = ypos;	
+	});
+
+	glfwSetWindowUserPointer(window, &mouse);
 
 	// main loop
 	while (!glfwWindowShouldClose(window))
 	{
 		// poll events
 		glfwPollEvents();
+
+		// density/velocity input
+		if (mouse.pressed)
+		{
+			int grid_x = (int)mouse.x;
+			int grid_y = (int)(GRID_HEIGHT - mouse.y);
+
+			fluidGrid.addDensity(grid_x, grid_y, 50.0f);
+			fluidGrid.addVelocity(grid_x, grid_y, 0.0f, 10.0f);
+		}
+
+		fluidGrid.step();
+
+		// get data from cpu
+		const auto& density = fluidGrid.getDensity();
+
+		// bind to upload
+		glBindTexture(GL_TEXTURE_2D, display_texture);
+		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, GRID_WIDTH, GRID_HEIGHT, GL_RED, GL_FLOAT, density.data());
+
 		// clear
-		glClearColor(0.2f, 0.4f, 0.3f, 1.0f);
+		glClearColor(.0f, .0f, .0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
 
 		// draw quad
-		quad_shader.use();
+		quadShader.use();
+		glUniform1i(glGetUniformLocation(quadShader.ID, "u_texture"), 0);
+
+		// bind texture
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, display_texture);
+
 		glBindVertexArray(VAO);
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 
