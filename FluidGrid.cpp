@@ -261,69 +261,86 @@ void FluidGrid::project(std::vector<glm::vec2>& velocity_field)
 
 void FluidGrid::setBoundaries(std::vector<glm::vec2>& field)
 {
-	// edges
+	// no-slip
+
 	// left and right
 	for (int y = 0; y < m_height; ++y)
 	{
-		field[IX(0, y, m_width)].x = .0f;
-		field[IX(m_width - 1, y, m_width)].x = .0f;
+		field[IX(0, y, m_width)] = glm::vec2(0.0f);
+		field[IX(m_width - 1, y, m_width)] = glm::vec2(0.0f);
 	}
 
-	// top and bottom
+	// top and bottom walls
 	for (int x = 0; x < m_width; ++x)
 	{
-		field[IX(x, 0, m_width)].y = .0f;
-		field[IX(x, m_height - 1, m_width)].y = .0f;
+		field[IX(x, 0, m_width)] = glm::vec2(0.0f);
+		field[IX(x, m_height - 1, m_width)] = glm::vec2(0.0f);
 	}
-
-	// corners
-	field[IX(0, 0, m_width)] = glm::vec2(.0f);
-	field[IX(0, m_height - 1, m_width)] = glm::vec2(.0f);
-	field[IX(m_width - 1, 0, m_width)] = glm::vec2(.0f);
-	field[IX(m_width - 1, m_height - 1, m_width)] = glm::vec2(.0f);
 }
+//void FluidGrid::setBoundaries(std::vector<glm::vec2>& field)
+//{
+//	// edges
+//	// left and right
+//	for (int y = 0; y < m_height; ++y)
+//	{
+//		field[IX(0, y, m_width)].x = .0f;
+//		field[IX(m_width - 1, y, m_width)].x = .0f;
+//	}
+//
+//	// top and bottom
+//	for (int x = 0; x < m_width; ++x)
+//	{
+//		field[IX(x, 0, m_width)].y = .0f;
+//		field[IX(x, m_height - 1, m_width)].y = .0f;
+//	}
+//
+//	// corners
+//	field[IX(0, 0, m_width)] = glm::vec2(.0f);
+//	field[IX(0, m_height - 1, m_width)] = glm::vec2(.0f);
+//	field[IX(m_width - 1, 0, m_width)] = glm::vec2(.0f);
+//	field[IX(m_width - 1, m_height - 1, m_width)] = glm::vec2(.0f);
+//}
 
 void FluidGrid::step()
 {
-	// global force
-	//m_global_force = glm::vec2(.0f, -.1f); // gravity
-	m_global_force = glm::vec2(2.0f, 4.0f); // reverse gravity
-	//m_global_force = glm::vec2(.1f, .1f);  // wind + updraft
+	// --- 0. ADD FORCES (to _read) ---
+	// (Your force here)
+	m_global_force = glm::vec2(.0f, .5f);
 	for (int i = 0; i < m_velocity_read.size(); ++i)
 	{
 		m_velocity_read[i] += m_global_force * m_delta_time;
 	}
+	// Mouse forces are also in m_velocity_read
 
-	// m_read = N, m_write = N-1, ping-pong buffers
-	
-	// diff velocity
+	// --- 1. VELOCITY STEP ---
+	// (Start with _read, end with _read)
+
+	// Diffuse velocity (read -> write)
 	diffuseVelocity(m_velocity_read, m_velocity_write, m_viscosity);
-	setBoundaries(m_velocity_write);
-	// res-> m_write = diffused velocity (N)
+	setBoundaries(m_velocity_write); // Apply to result
+	std::swap(m_velocity_read, m_velocity_write); // _read now has diffused vel
 
-	// project velocity
-	project(m_velocity_write);
-	setBoundaries(m_velocity_write);
-	// res-> m_read = projected( diffused (N-1 + input)), m_write = N-1
-	
-	// advect velocity
+	// Project velocity (modifies _read in-place)
+	project(m_velocity_read);
+	setBoundaries(m_velocity_read); // Apply to result
+
+	// Advect velocity (read -> write)
 	advectVelocity(m_velocity_read, m_velocity_write, m_velocity_read);
-	setBoundaries(m_velocity_write);
-	std::swap(m_velocity_read, m_velocity_write);
+	setBoundaries(m_velocity_write); // Apply to result
+	std::swap(m_velocity_read, m_velocity_write); // _read now has final vel
 
-	// diff density
+	// --- 2. DENSITY STEP ---
+	// (Start with _read, end with _read, use final velocity)
+
+	// Diffuse density (read -> write)
 	diffuse(m_density_read, m_density_write, .00001f);
-	std::swap(m_density_read, m_density_write);
-	// res-> m_write = diffused density (N)
+	std::swap(m_density_read, m_density_write); // _read has diffused den
 
-	// advect density
+	// Advect density (read -> write)
+	// Uses the final velocity from Step 1 (which is in m_velocity_read)
 	advect(m_density_read, m_density_write, m_velocity_read);
-	std::swap(m_density_read, m_density_write);
+	std::swap(m_density_read, m_density_write); // _read has final den
 
-	// swap aq
-	//swapBuffers();
-	// res-> m_read = diffused N, m_write = N
-
-	// swap aq
-	//swapBuffers();
+	// --- END ---
+	// The final, correct state is in m_velocity_read and m_density_read.
 }
