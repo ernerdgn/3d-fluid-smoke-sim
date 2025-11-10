@@ -1,6 +1,18 @@
 #include <iostream>
 #include <glad/glad.h>
 #include <glfw3.h>
+#include "shader.h"
+
+float quad_vertices[] = {
+	// positions      // texture coords
+	-.5f,  .5f,     0.0f, .5f,
+	-.5f, -.5f,     0.0f, 0.0f,
+	 .5f, -.5f,     .5f, 0.0f,
+
+	-.5f,  .5f,     0.0f, .5f,
+	 .5f, -.5f,     .5f, 0.0f,
+	 .5f,  .5f,     .5f, .5f
+};
 
 int main()
 {
@@ -39,6 +51,30 @@ int main()
 	// viewport
 	glViewport(0, 0, 800, 600);
 
+	unsigned int VBO, VAO;
+	glGenVertexArrays(1, &VAO);
+	glGenBuffers(1, &VBO);
+
+	// bind vao
+	glBindVertexArray(VAO);
+
+	// bind and set vbo
+	glBindBuffer(GL_ARRAY_BUFFER, VBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(quad_vertices), quad_vertices, GL_STATIC_DRAW);
+
+	// position attribute
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(0);
+	// texture coord attribute
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+	glEnableVertexAttribArray(1);
+
+	// unbind
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
+
+	Shader quad_shader("quad.vert", "quad.frag");
+
 	// main loop
 	while (!glfwWindowShouldClose(window))
 	{
@@ -47,11 +83,19 @@ int main()
 		// clear
 		glClearColor(0.2f, 0.4f, 0.3f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
+
+		// draw quad
+		quad_shader.use();
+		glBindVertexArray(VAO);
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+
 		// swap buffers
 		glfwSwapBuffers(window);
 	}
 
 	// clean
+	glDeleteVertexArrays(1, &VAO);
+	glDeleteBuffers(1, &VBO);
 	glfwTerminate();
 	return 0;
 }
