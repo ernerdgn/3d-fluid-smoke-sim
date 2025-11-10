@@ -21,6 +21,7 @@ private:
 	int m_height;
 	float m_delta_time;
 	float m_viscosity;
+	glm::vec2 m_global_force;
 
 	void swapBuffers();
 	void advect(std::vector<float>& read_buffer, std::vector<float>& write_buffer, const std::vector<glm::vec2>& velocity_field);
@@ -28,6 +29,7 @@ private:
 	void diffuseVelocity(const std::vector<glm::vec2>& read_buffer, std::vector<glm::vec2>& write_buffer, float diff_rate);
 	void advectVelocity(const std::vector<glm::vec2>& read_buffer, std::vector<glm::vec2>& write_buffer, const std::vector<glm::vec2>& velocity_field);
 	void project(std::vector<glm::vec2>& velocity_field);
+	void setBoundaries(std::vector<glm::vec2>& field);
 
 	// sim data
 	std::vector<float> m_density_read;

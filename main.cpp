@@ -205,7 +205,7 @@ int main()
 			int grid_y = (int)(GRID_HEIGHT - mouse.y);
 
 			fluidGrid.addDensity(grid_x, grid_y, 50.0f);
-			fluidGrid.addVelocity(grid_x, grid_y, 0.0f, 10.0f);
+			//fluidGrid.addVelocity(grid_x, grid_y, .0f, .0f);
 		}
 
 		fluidGrid.step();

@@ -61,7 +61,9 @@ static glm::vec2 sampleVec2(const std::vector<glm::vec2>& buffer, float x, float
 }
 
 FluidGrid::FluidGrid(int width, int height)
-	: m_width(width), m_height(height), m_delta_time(.1f), m_viscosity(.0001f)
+	: m_width(width), m_height(height), 
+	m_delta_time(.1f), m_viscosity(.0001f), 
+	m_global_force(.0f, -.05f)
 {
 	int size = width * height;
 	m_density_read.resize(size, 0.0f);
@@ -257,32 +259,71 @@ void FluidGrid::project(std::vector<glm::vec2>& velocity_field)
 	}
 }
 
+void FluidGrid::setBoundaries(std::vector<glm::vec2>& field)
+{
+	// edges
+	// left and right
+	for (int y = 0; y < m_height; ++y)
+	{
+		field[IX(0, y, m_width)].x = .0f;
+		field[IX(m_width - 1, y, m_width)].x = .0f;
+	}
+
+	// top and bottom
+	for (int x = 0; x < m_width; ++x)
+	{
+		field[IX(x, 0, m_width)].y = .0f;
+		field[IX(x, m_height - 1, m_width)].y = .0f;
+	}
+
+	// corners
+	field[IX(0, 0, m_width)] = glm::vec2(.0f);
+	field[IX(0, m_height - 1, m_width)] = glm::vec2(.0f);
+	field[IX(m_width - 1, 0, m_width)] = glm::vec2(.0f);
+	field[IX(m_width - 1, m_height - 1, m_width)] = glm::vec2(.0f);
+}
+
 void FluidGrid::step()
 {
-	// m_read = N, m_write = N-1, ping-pong buffers
+	// global force
+	//m_global_force = glm::vec2(.0f, -.1f); // gravity
+	m_global_force = glm::vec2(2.0f, 4.0f); // reverse gravity
+	//m_global_force = glm::vec2(.1f, .1f);  // wind + updraft
+	for (int i = 0; i < m_velocity_read.size(); ++i)
+	{
+		m_velocity_read[i] += m_global_force * m_delta_time;
+	}
 
+	// m_read = N, m_write = N-1, ping-pong buffers
+	
 	// diff velocity
 	diffuseVelocity(m_velocity_read, m_velocity_write, m_viscosity);
+	setBoundaries(m_velocity_write);
 	// res-> m_write = diffused velocity (N)
+
+	// project velocity
+	project(m_velocity_write);
+	setBoundaries(m_velocity_write);
+	// res-> m_read = projected( diffused (N-1 + input)), m_write = N-1
+	
+	// advect velocity
+	advectVelocity(m_velocity_read, m_velocity_write, m_velocity_read);
+	setBoundaries(m_velocity_write);
+	std::swap(m_velocity_read, m_velocity_write);
 
 	// diff density
 	diffuse(m_density_read, m_density_write, .00001f);
+	std::swap(m_density_read, m_density_write);
 	// res-> m_write = diffused density (N)
-
-	// swap aq
-	swapBuffers();
-	// res-> m_read = diffused N, m_write = N
-
-	// project velocity
-	project(m_velocity_read);
-	// res-> m_read = projected( diffused (N-1 + input)), m_write = N-1
 
 	// advect density
 	advect(m_density_read, m_density_write, m_velocity_read);
-
-	// advect velocity
-	advectVelocity(m_velocity_read, m_velocity_write, m_velocity_read);
+	std::swap(m_density_read, m_density_write);
 
 	// swap aq
-	swapBuffers();
+	//swapBuffers();
+	// res-> m_read = diffused N, m_write = N
+
+	// swap aq
+	//swapBuffers();
 }
