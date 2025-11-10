@@ -214,7 +214,7 @@ void FluidGrid::project(std::vector<glm::vec2>& velocity_field)
 			int index = IX(x, y, m_width);
 			float div =
 				(velocity_field[IX(x + 1, y, m_width)].x - velocity_field[IX(x - 1, y, m_width)].x +
-				 velocity_field[IX(x, y + 1, m_width)].y - velocity_field[IX(x, y - 1, m_width)].y) * 0.5f * h;
+				 velocity_field[IX(x, y + 1, m_width)].y - velocity_field[IX(x, y - 1, m_width)].y);
 			m_divergence[index] = -.5f * h * div;
 			m_pressure[index] = .0f; // reset pressure, ohhh
 		}

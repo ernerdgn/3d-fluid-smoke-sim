@@ -12,9 +12,9 @@ public:
 	void addDensity(int x, int y, float amount);
 	void addVelocity(int x, int y, float forceX, float forceY);
 
-	const std::vector<float>& getDensity() const { return m_density_read; }
-	const std::vector<glm::vec2>& getVelocity() const { return m_velocity_read; }
-	const std::vector<float>& getPressure() const { return m_pressure; }
+	const std::vector<float>& getDensity() { return m_density_read; }
+	const std::vector<glm::vec2>& getVelocity() { return m_velocity_read; }
+	const std::vector<float>& getPressure() { return m_pressure; }
 
 private:
 	int m_width;

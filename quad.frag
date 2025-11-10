@@ -40,12 +40,12 @@ void main()
 	else if (u_debugMode == 1)
 	{
 		vec2 velocity = texture(u_velocityTex, TexCoords).rg;
-		FragColor = visualizeVelocity(velocity * .1);
+		FragColor = visualizeVelocity(velocity * 5.0);
 	}
 	else if (u_debugMode == 2)
 	{
 		float pressure = texture(u_pressureTex, TexCoords).r;
-		FragColor = visualizePressure(pressure * .01);
+		FragColor = visualizePressure(pressure * 200.0);
 	}
 	else
 	{
