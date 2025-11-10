@@ -40,7 +40,8 @@ static float sample(const std::vector<float>&buffer, float x, float y, int width
 	return lerp(top, bottom, sy);
 }
 
-FluidGrid::FluidGrid(int width, int height) : m_width(width), m_height(height), m_delta_time(.1f)
+FluidGrid::FluidGrid(int width, int height)
+	: m_width(width), m_height(height), m_delta_time(.1f), m_viscosity(.0001f)
 {
 	int size = width * height;
 	m_density_read.resize(size, 0.0f);
@@ -93,14 +94,91 @@ void FluidGrid::advect(std::vector<float>& read_buffer, std::vector<float>& writ
 	}
 }
 
+void FluidGrid::diffuse(std::vector<float>& read_buffer, std::vector<float>& write_buffer, float diff_rate)
+{
+	int iter = 20;
+
+	// constant related to diffusion rate and time step
+	float a = m_delta_time * diff_rate * m_width * m_height;  // can be width*width for square grid
+
+	// Gauss-Seidel relaxation
+	std::vector<float>& v = write_buffer; // solving for this
+	const std::vector<float>& v0 = read_buffer;  // initial state
+
+	for (int k = 0; k < iter; ++k)
+	{
+		for (int y = 0; y < m_height; ++y)
+		{
+			for (int x = 0; x < m_width; ++x)
+			{
+				int index = IX(x, y, m_width);
+
+				// get vals of neighboring cells
+				float neighbor_sum = 
+					v[IX(x - 1, y, m_width)] +  // left
+					v[IX(x + 1, y, m_width)] +  // rigth
+					v[IX(x, y - 1, m_width)] +  // bottom
+					v[IX(x, y + 1, m_width)];   // top
+
+				v[index] = (v0[index] + a * neighbor_sum) / (1 + 4 * a);
+			}
+		}
+	}
+}
+
+void FluidGrid::diffuseVelocity(const std::vector<glm::vec2>& read_buffer, std::vector<glm::vec2>& write_buffer, float diff_rate)
+{
+	int iter = 20;
+
+	// constant related to diffusion rate and time step
+	float a = m_delta_time * diff_rate * m_width * m_height;  // can be width*width for square grid
+	
+	// Gauss-Seidel relaxation
+	std::vector<glm::vec2>& v = write_buffer; // solving for this
+	const std::vector<glm::vec2>& v0 = read_buffer;  // initial state
+	
+	for (int k = 0; k < iter; ++k)
+	{
+		for (int y = 0; y < m_height; ++y)
+		{
+			for (int x = 0; x < m_width; ++x)
+			{
+				int index = IX(x, y, m_width);
+				
+				// get vals of neighboring cells
+				glm::vec2 neighbor_sum =
+					v[IX(x - 1, y, m_width)] +  // left
+					v[IX(x + 1, y, m_width)] +  // rigth
+					v[IX(x, y - 1, m_width)] +  // bottom
+					v[IX(x, y + 1, m_width)];   // top
+				
+				v[index] = (v0[index] + a * neighbor_sum) / (1.0f + 4.0f * a);
+			}
+		}
+	}
+}
+
 void FluidGrid::step()
 {
+	// m_read = N, m_write = N-1, ping-pong buffers
+
+	// diff velocity
+	diffuseVelocity(m_velocity_read, m_velocity_write, m_viscosity);
+	// res-> m_write = diffused velocity (N)
+
+	// diff density
+	diffuse(m_density_read, m_density_write, .00001f);
+	// res-> m_write = diffused density (N)
+
+	// swap aq
+	swapBuffers();
+	// res-> m_read = diffused N, m_write = N
+
+	// advect density
 	advect(m_density_read, m_density_write, m_velocity_read);
 
-	// TODO: velo advect
-	// TODO: diffusion
-	// TODO: projection
+	// TODO: advect velocity
 
-	//std::swap(m_density_read, m_density_write);
+	// swap aq
 	swapBuffers();
 }

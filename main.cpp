@@ -28,8 +28,8 @@ float quad_vertices[] =
 };
 
 // grid size
-const int GRID_WIDTH = 256;
-const int GRID_HEIGHT = 256;
+const int GRID_WIDTH = 128;
+const int GRID_HEIGHT = 128;
 
 int main()
 {
