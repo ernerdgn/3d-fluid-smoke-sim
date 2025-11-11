@@ -303,44 +303,33 @@ void FluidGrid::setBoundaries(std::vector<glm::vec2>& field)
 
 void FluidGrid::step()
 {
-	// --- 0. ADD FORCES (to _read) ---
-	// (Your force here)
 	m_global_force = glm::vec2(.0f, .5f);
 	for (int i = 0; i < m_velocity_read.size(); ++i)
 	{
 		m_velocity_read[i] += m_global_force * m_delta_time;
 	}
-	// Mouse forces are also in m_velocity_read
-
-	// --- 1. VELOCITY STEP ---
-	// (Start with _read, end with _read)
-
-	// Diffuse velocity (read -> write)
+	
+	// diff velocity
 	diffuseVelocity(m_velocity_read, m_velocity_write, m_viscosity);
-	setBoundaries(m_velocity_write); // Apply to result
-	std::swap(m_velocity_read, m_velocity_write); // _read now has diffused vel
+	setBoundaries(m_velocity_write);
+	std::swap(m_velocity_read, m_velocity_write); // _read has diffused vel
 
-	// Project velocity (modifies _read in-place)
+	// proj veloc
 	project(m_velocity_read);
-	setBoundaries(m_velocity_read); // Apply to result
+	setBoundaries(m_velocity_read);
 
-	// Advect velocity (read -> write)
+	// advect veloc
 	advectVelocity(m_velocity_read, m_velocity_write, m_velocity_read);
-	setBoundaries(m_velocity_write); // Apply to result
-	std::swap(m_velocity_read, m_velocity_write); // _read now has final vel
+	setBoundaries(m_velocity_write);
+	std::swap(m_velocity_read, m_velocity_write); // _read has final vel
 
-	// --- 2. DENSITY STEP ---
-	// (Start with _read, end with _read, use final velocity)
+	// density
 
-	// Diffuse density (read -> write)
+	// diff den
 	diffuse(m_density_read, m_density_write, .00001f);
 	std::swap(m_density_read, m_density_write); // _read has diffused den
 
-	// Advect density (read -> write)
-	// Uses the final velocity from Step 1 (which is in m_velocity_read)
+	// adv den
 	advect(m_density_read, m_density_write, m_velocity_read);
 	std::swap(m_density_read, m_density_write); // _read has final den
-
-	// --- END ---
-	// The final, correct state is in m_velocity_read and m_density_read.
 }
