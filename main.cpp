@@ -2,7 +2,8 @@
 #include <glad/glad.h>
 #include <glfw3.h>
 #include "shader.h"
-#include "FluidGrid.h"
+//#include "FluidGrid.h"
+#include "GpuGrid.h"
 #include <glm/gtc/type_ptr.hpp>
 
 //float quad_vertices[] = {
@@ -125,44 +126,6 @@ int main()
 		}
 	});
 
-	FluidGrid fluidGrid(GRID_WIDTH, GRID_HEIGHT);
-
-	// texture
-	unsigned int display_texture;
-	glGenTextures(1, &display_texture);
-	glBindTexture(GL_TEXTURE_2D, display_texture);
-
-	// tex params
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-	// allocate texture on gpu
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, GRID_WIDTH, GRID_HEIGHT, 0, GL_RED, GL_FLOAT, nullptr);
-	glBindTexture(GL_TEXTURE_2D, 0); // unbind
-
-	// velocity and pressure textures (for debug display)
-	// velocity
-	unsigned int velocity_texture;
-	glGenTextures(1, &velocity_texture);
-	glBindTexture(GL_TEXTURE_2D, velocity_texture);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	// red+green for velocity
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RG32F, GRID_WIDTH, GRID_HEIGHT, 0, GL_RG, GL_FLOAT, NULL);
-
-	// pressure
-	unsigned int pressure_texture;
-	glGenTextures(1, &pressure_texture);
-	glBindTexture(GL_TEXTURE_2D, pressure_texture);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	// red for pressure
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, GRID_WIDTH, GRID_HEIGHT, 0, GL_RED, GL_FLOAT, NULL);
-
-	glBindTexture(GL_TEXTURE_2D, 0); // unbind
-
 	// mouse interaction
 	struct MouseState
 	{
@@ -172,25 +135,67 @@ int main()
 	} mouse;
 
 	glfwSetMouseButtonCallback(window, [](GLFWwindow* window, int button, int action, int mods)
-	{
-		MouseState* mouse = (MouseState*)glfwGetWindowUserPointer(window);
-		if (button == GLFW_MOUSE_BUTTON_LEFT)
 		{
-			if (action == GLFW_PRESS)
-				mouse->pressed = true;
-			else if (action == GLFW_RELEASE)
-				mouse->pressed = false;
-		}
-	});
+			MouseState* mouse = (MouseState*)glfwGetWindowUserPointer(window);
+			if (button == GLFW_MOUSE_BUTTON_LEFT)
+			{
+				if (action == GLFW_PRESS)
+					mouse->pressed = true;
+				else if (action == GLFW_RELEASE)
+					mouse->pressed = false;
+			}
+		});
 
 	glfwSetCursorPosCallback(window, [](GLFWwindow* window, double xpos, double ypos)
-	{
-		MouseState* mouse = (MouseState*)glfwGetWindowUserPointer(window);
-		mouse->x = xpos;
-		mouse->y = ypos;	
-	});
+		{
+			MouseState* mouse = (MouseState*)glfwGetWindowUserPointer(window);
+			mouse->x = xpos;
+			mouse->y = ypos;
+		});
 
 	glfwSetWindowUserPointer(window, &mouse);
+
+	/* CPU GRID */
+	//FluidGrid fluidGrid(GRID_WIDTH, GRID_HEIGHT);
+
+	//// texture
+	//unsigned int display_texture;
+	//glGenTextures(1, &display_texture);
+	//glBindTexture(GL_TEXTURE_2D, display_texture);
+
+	//// tex params
+	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+	//// allocate texture on gpu
+	//glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, GRID_WIDTH, GRID_HEIGHT, 0, GL_RED, GL_FLOAT, nullptr);
+	//glBindTexture(GL_TEXTURE_2D, 0); // unbind
+
+	//// velocity and pressure textures (for debug display)
+	//// velocity
+	//unsigned int velocity_texture;
+	//glGenTextures(1, &velocity_texture);
+	//glBindTexture(GL_TEXTURE_2D, velocity_texture);
+	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	//// red+green for velocity
+	//glTexImage2D(GL_TEXTURE_2D, 0, GL_RG32F, GRID_WIDTH, GRID_HEIGHT, 0, GL_RG, GL_FLOAT, NULL);
+
+	//// pressure
+	//unsigned int pressure_texture;
+	//glGenTextures(1, &pressure_texture);
+	//glBindTexture(GL_TEXTURE_2D, pressure_texture);
+	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	//// red for pressure
+	//glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, GRID_WIDTH, GRID_HEIGHT, 0, GL_RED, GL_FLOAT, NULL);
+
+	//glBindTexture(GL_TEXTURE_2D, 0); // unbind
+
+	/* GPU GRID */
+	GpuGrid gpuGrid(GRID_WIDTH, GRID_HEIGHT);
 
 	// main loop
 	while (!glfwWindowShouldClose(window))
@@ -198,36 +203,39 @@ int main()
 		// poll events
 		glfwPollEvents();
 
-		// density/velocity input
-		if (mouse.pressed)
-		{
-			int grid_x = (int)mouse.x;
-			int grid_y = (int)(GRID_HEIGHT - mouse.y);
+		//// density/velocity input
+		//if (mouse.pressed)
+		//{
+		//	int grid_x = (int)mouse.x;
+		//	int grid_y = (int)(GRID_HEIGHT - mouse.y);
 
-			fluidGrid.addDensity(grid_x, grid_y, 50.0f);
-			//fluidGrid.addVelocity(grid_x, grid_y, .0f, .0f);
-		}
+		//	//fluidGrid.addDensity(grid_x, grid_y, 50.0f);
+		//	//fluidGrid.addVelocity(grid_x, grid_y, .0f, .0f);
+		//}
 
-		fluidGrid.step();
+		//fluidGrid.step();
 
-		// get data from cpu
-		// upload density
-		const auto& density = fluidGrid.getDensity();
-		// bind to upload
-		glBindTexture(GL_TEXTURE_2D, display_texture);
-		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, GRID_WIDTH, GRID_HEIGHT, GL_RED, GL_FLOAT, density.data());
+		//// get data from cpu
+		//// upload density
+		//const auto& density = fluidGrid.getDensity();
+		//// bind to upload
+		//glBindTexture(GL_TEXTURE_2D, display_texture);
+		//glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, GRID_WIDTH, GRID_HEIGHT, GL_RED, GL_FLOAT, density.data());
 
-		// upload velocity
-		const auto& velocity = fluidGrid.getVelocity();
-		glBindTexture(GL_TEXTURE_2D, velocity_texture);
-		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, GRID_WIDTH, GRID_HEIGHT, GL_RG, GL_FLOAT, velocity.data());
+		//// upload velocity
+		//const auto& velocity = fluidGrid.getVelocity();
+		//glBindTexture(GL_TEXTURE_2D, velocity_texture);
+		//glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, GRID_WIDTH, GRID_HEIGHT, GL_RG, GL_FLOAT, velocity.data());
 
-		// upload pressure
-		const auto& pressure = fluidGrid.getPressure();
-		glBindTexture(GL_TEXTURE_2D, pressure_texture);
-		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, GRID_WIDTH, GRID_HEIGHT, GL_RED, GL_FLOAT, pressure.data());
+		//// upload pressure
+		//const auto& pressure = fluidGrid.getPressure();
+		//glBindTexture(GL_TEXTURE_2D, pressure_texture);
+		//glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, GRID_WIDTH, GRID_HEIGHT, GL_RED, GL_FLOAT, pressure.data());
 
 		// RENDERING
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glViewport(0, 0, GRID_WIDTH, GRID_HEIGHT);
+
 		// clear
 		glClearColor(.0f, .0f, .0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
@@ -237,20 +245,37 @@ int main()
 		glUniform1i(glGetUniformLocation(quadShader.ID, "u_debugMode"), g_DebugMode);
 
 		// bind textures
-		// unit0
+		//unit0
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, display_texture);
+		glBindTexture(GL_TEXTURE_2D, gpuGrid.getDensityTexture());
 		glUniform1i(glGetUniformLocation(quadShader.ID, "u_densityTex"), 0);
 
 		//unit1
 		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, velocity_texture);
+		glBindTexture(GL_TEXTURE_2D, gpuGrid.getVelocityTexture());
 		glUniform1i(glGetUniformLocation(quadShader.ID, "u_velocityTex"), 1);
 
 		//unit2
 		glActiveTexture(GL_TEXTURE2);
-		glBindTexture(GL_TEXTURE_2D, pressure_texture);
+		glBindTexture(GL_TEXTURE_2D, gpuGrid.getPressureTexture());
 		glUniform1i(glGetUniformLocation(quadShader.ID, "u_pressureTex"), 2);
+
+
+		//// bind textures
+		//// unit0
+		//glActiveTexture(GL_TEXTURE0);
+		//glBindTexture(GL_TEXTURE_2D, display_texture);
+		//glUniform1i(glGetUniformLocation(quadShader.ID, "u_densityTex"), 0);
+
+		////unit1
+		//glActiveTexture(GL_TEXTURE1);
+		//glBindTexture(GL_TEXTURE_2D, velocity_texture);
+		//glUniform1i(glGetUniformLocation(quadShader.ID, "u_velocityTex"), 1);
+
+		////unit2
+		//glActiveTexture(GL_TEXTURE2);
+		//glBindTexture(GL_TEXTURE_2D, pressure_texture);
+		//glUniform1i(glGetUniformLocation(quadShader.ID, "u_pressureTex"), 2);
 
 		// draw quad
 		glBindVertexArray(VAO);

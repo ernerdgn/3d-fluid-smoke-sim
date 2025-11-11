@@ -127,12 +127,14 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="FluidGrid.cpp" />
+    <ClCompile Include="GpuGrid.cpp" />
     <ClCompile Include="libs\glad\src\glad.c" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="shader.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="FluidGrid.h" />
+    <ClInclude Include="GpuGrid.h" />
     <ClInclude Include="shader.h" />
   </ItemGroup>
   <ItemGroup>
