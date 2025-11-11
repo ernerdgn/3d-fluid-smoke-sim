@@ -30,8 +30,8 @@ float quad_vertices[] =
 };
 
 // grid size
-const int GRID_WIDTH = 128;
-const int GRID_HEIGHT = 128;
+const int GRID_WIDTH = 512;
+const int GRID_HEIGHT = 512;
 
 int g_DebugMode = 0; // 0: density, 1: velocity, 2: pressure
 
@@ -100,6 +100,8 @@ int main()
 	glBindVertexArray(0);
 
 	Shader quadShader("quad.vert", "quad.frag");
+	Shader splatShader("quad.vert", "splat.frag");
+	Shader clearShader("quad.vert", "clear.frag");
 
 	glfwSetKeyCallback(window, [](GLFWwindow* window, int key, int scancode, int action, int mods)
 	{
@@ -197,11 +199,68 @@ int main()
 	/* GPU GRID */
 	GpuGrid gpuGrid(GRID_WIDTH, GRID_HEIGHT);
 
+	// clear fbos to 0
+	glViewport(0, 0, GRID_WIDTH, GRID_HEIGHT);
+	clearShader.use();
+
+	// list of fbos
+	GLuint fbos[] = {
+		gpuGrid.m_velocityFboA, gpuGrid.m_velocityFboB,
+		gpuGrid.m_densityFboA, gpuGrid.m_densityFboB,
+		gpuGrid.m_divergenceFbo,
+		gpuGrid.m_pressureFboA, gpuGrid.m_pressureFboB
+	};
+
+	for (GLuint fbo : fbos)
+	{
+		glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+		glDrawArrays(GL_TRIANGLES, 0, 6); // clear quad
+	}
+
+	glm::vec2 lastMousePos = glm::vec2(.0f);
+
 	// main loop
 	while (!glfwWindowShouldClose(window))
 	{
 		// poll events
 		glfwPollEvents();
+
+		// sim
+		// splat
+		glViewport(0, 0, GRID_WIDTH, GRID_HEIGHT);
+		splatShader.use();
+
+		// compute mouse vel
+		glm::vec2 mousePos = glm::vec2(mouse.x, GRID_HEIGHT - mouse.y);
+		glm::vec2 mouseVel = mousePos - lastMousePos;
+		lastMousePos = mousePos;
+
+		// set uniforms for the splat shader
+		glUniform2fv(glGetUniformLocation(splatShader.ID, "u_mouse_pos"), 1, glm::value_ptr(mousePos));
+		glUniform1f(glGetUniformLocation(splatShader.ID, "u_radius"), 7.0f); // 7-pixel brush
+		glUniform1i(glGetUniformLocation(splatShader.ID, "u_is_bouncing"), mouse.pressed ? 1 : 0);
+
+		// -----
+		glUniform3f(glGetUniformLocation(splatShader.ID, "u_force"), mouseVel.x * 0.1f, mouseVel.y * 0.1f, 0.0f);
+
+		glBindFramebuffer(GL_FRAMEBUFFER, gpuGrid.m_velocityFboB); // write b
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, gpuGrid.m_velocityTexA); // read a
+		glUniform1i(glGetUniformLocation(splatShader.ID, "u_read_texture"), 0);
+
+		glDrawArrays(GL_TRIANGLES, 0, 6); // run shader
+		gpuGrid.swapVelocityBuffers(); // swap a-b
+
+		// add density
+		glUniform3f(glGetUniformLocation(splatShader.ID, "u_force"), 5.0f, 0.0f, 0.0f); // +5 dens
+
+		glBindFramebuffer(GL_FRAMEBUFFER, gpuGrid.m_densityFboB); // write b
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, gpuGrid.m_densityTexA); // read a
+		glUniform1i(glGetUniformLocation(splatShader.ID, "u_read_texture"), 0);
+
+		glDrawArrays(GL_TRIANGLES, 0, 6); // run shader
+		gpuGrid.swapDensityBuffers();   // swap a-b
 
 		//// density/velocity input
 		//if (mouse.pressed)
