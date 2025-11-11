@@ -140,6 +140,7 @@
   <ItemGroup>
     <None Include="advect.frag" />
     <None Include="clear.frag" />
+    <None Include="curl.frag" />
     <None Include="diffuse.frag" />
     <None Include="divergence.frag" />
     <None Include="gradient.frag" />
@@ -147,6 +148,7 @@
     <None Include="quad.frag" />
     <None Include="quad.vert" />
     <None Include="splat.frag" />
+    <None Include="vorticity.frag" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -108,6 +108,8 @@ int main()
 	Shader divergenceShader("quad.vert", "divergence.frag");
 	Shader pressureShader("quad.vert", "pressure.frag");
 	Shader gradientShader("quad.vert", "gradient.frag");
+	Shader curlShader("quad.vert", "curl.frag");
+	Shader vorticityShader("quad.vert", "vorticity.frag");
 
 	glfwSetKeyCallback(window, [](GLFWwindow* window, int key, int scancode, int action, int mods)
 	{
@@ -214,7 +216,8 @@ int main()
 		gpuGrid.m_velocityFboA, gpuGrid.m_velocityFboB,
 		gpuGrid.m_densityFboA, gpuGrid.m_densityFboB,
 		gpuGrid.m_divergenceFbo,
-		gpuGrid.m_pressureFboA, gpuGrid.m_pressureFboB
+		gpuGrid.m_pressureFboA, gpuGrid.m_pressureFboB,
+		gpuGrid.m_curlFbo
 	};
 
 	for (GLuint fbo : fbos)
@@ -236,6 +239,8 @@ int main()
 	int diffuse_iterations = 20;
 	// pressure iters
 	int pressure_iterations = 40;
+	// tightness of swirls
+	float vorticity_epsilon = 2.5f;
 
 
 	// main loop
@@ -280,6 +285,35 @@ int main()
 
 		glDrawArrays(GL_TRIANGLES, 0, 6); // run shader
 		gpuGrid.swapDensityBuffers();   // swap a-b
+
+		// CONFINEMENT FORCE
+		// curlSHADER
+		curlShader.use();
+		glBindFramebuffer(GL_FRAMEBUFFER, gpuGrid.m_curlFbo); // write curlTex
+
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, gpuGrid.m_velocityTexA); // read splat
+		glUniform1i(glGetUniformLocation(curlShader.ID, "u_velocity_field"), 0);
+
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+
+		// vorticitySHADER
+		vorticityShader.use();
+		glUniform1f(glGetUniformLocation(vorticityShader.ID, "u_epsilon"), vorticity_epsilon);
+		glUniform1f(glGetUniformLocation(vorticityShader.ID, "u_dt"), time_step);
+
+		glBindFramebuffer(GL_FRAMEBUFFER, gpuGrid.m_velocityFboB); // Write to velocity B
+
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, gpuGrid.m_velocityTexA); // read velo from splat
+		glUniform1i(glGetUniformLocation(vorticityShader.ID, "u_velocity_field"), 0);
+
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, gpuGrid.m_curlTex); // read curlTex
+		glUniform1i(glGetUniformLocation(vorticityShader.ID, "u_curl_field"), 1);
+
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+		gpuGrid.swapVelocityBuffers(); // swap, res->velocityTexA
 
 		// diffuseSHADER
 		diffuseShader.use();

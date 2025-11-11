@@ -69,5 +69,11 @@
     <None Include="gradient.frag">
       <Filter>Shaders</Filter>
     </None>
+    <None Include="curl.frag">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="vorticity.frag">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
 </Project>

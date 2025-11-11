@@ -17,6 +17,9 @@ GpuGrid::GpuGrid(int width, int height) : m_width(width), m_height(height)
 	// pressure, red
 	createFbo(m_pressureFboA, m_pressureTexA, GL_R32F, GL_RED);
 	createFbo(m_pressureFboB, m_pressureTexB, GL_R32F, GL_RED);
+
+	// curl, red
+	createFbo(m_curlFbo, m_curlTex, GL_R32F, GL_RED);
 }
 
 GpuGrid::~GpuGrid()

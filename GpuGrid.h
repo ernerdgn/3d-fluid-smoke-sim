@@ -29,6 +29,9 @@ public:
 	GLuint m_pressureFboA, m_pressureFboB;
 	GLuint m_pressureTexA, m_pressureTexB;
 
+	// util buffer for vorticity confinement
+	GLuint m_curlFbo, m_curlTex;
+
 private:
 	int m_width, m_height;
 
