@@ -99,9 +99,15 @@ int main()
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindVertexArray(0);
 
+	// load shaders
 	Shader quadShader("quad.vert", "quad.frag");
 	Shader splatShader("quad.vert", "splat.frag");
 	Shader clearShader("quad.vert", "clear.frag");
+	Shader advectShader("quad.vert", "advect.frag");
+	Shader diffuseShader("quad.vert", "diffuse.frag");
+	Shader divergenceShader("quad.vert", "divergence.frag");
+	Shader pressureShader("quad.vert", "pressure.frag");
+	Shader gradientShader("quad.vert", "gradient.frag");
 
 	glfwSetKeyCallback(window, [](GLFWwindow* window, int key, int scancode, int action, int mods)
 	{
@@ -219,6 +225,19 @@ int main()
 
 	glm::vec2 lastMousePos = glm::vec2(.0f);
 
+	// constants
+	// brush radius
+	float brush_radius = GRID_WIDTH * .0075f;  // .75% of the grid
+	// time
+	float time_step = .1f;
+	// viscosity
+	float viscosity = .0001f;
+	// diffuse iters
+	int diffuse_iterations = 20;
+	// pressure iters
+	int pressure_iterations = 40;
+
+
 	// main loop
 	while (!glfwWindowShouldClose(window))
 	{
@@ -226,7 +245,7 @@ int main()
 		glfwPollEvents();
 
 		// sim
-		// splat
+		// splatSHADER
 		glViewport(0, 0, GRID_WIDTH, GRID_HEIGHT);
 		splatShader.use();
 
@@ -237,7 +256,7 @@ int main()
 
 		// set uniforms for the splat shader
 		glUniform2fv(glGetUniformLocation(splatShader.ID, "u_mouse_pos"), 1, glm::value_ptr(mousePos));
-		glUniform1f(glGetUniformLocation(splatShader.ID, "u_radius"), 7.0f); // 7-pixel brush
+		glUniform1f(glGetUniformLocation(splatShader.ID, "u_radius"), brush_radius); // 1.5% of the grid
 		glUniform1i(glGetUniformLocation(splatShader.ID, "u_is_bouncing"), mouse.pressed ? 1 : 0);
 
 		// -----
@@ -261,6 +280,159 @@ int main()
 
 		glDrawArrays(GL_TRIANGLES, 0, 6); // run shader
 		gpuGrid.swapDensityBuffers();   // swap a-b
+
+		// diffuseSHADER
+		diffuseShader.use();
+
+		// alpha and rbeta
+		float a = time_step * viscosity * GRID_WIDTH * GRID_HEIGHT;
+		glUniform1f(glGetUniformLocation(diffuseShader.ID, "u_alpha"), a);
+		glUniform1f(glGetUniformLocation(diffuseShader.ID, "u_rBeta"), 1.0f / (1.0f + 4.0f * a));
+
+		// diffuse velocity
+		// u_b, never changes during the loop
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, gpuGrid.m_velocityTexA); // adv res
+		glUniform1i(glGetUniformLocation(diffuseShader.ID, "u_b"), 1);
+
+		// iters
+		for (int i = 0; i < diffuse_iterations; ++i)
+		{
+			// set ux to 0
+			glActiveTexture(GL_TEXTURE0);
+			glUniform1i(glGetUniformLocation(diffuseShader.ID, "u_x"), 0);
+
+			if (i % 2 == 0)
+			{
+				// read a, write b
+				glBindTexture(GL_TEXTURE_2D, gpuGrid.m_velocityTexA);
+				glBindFramebuffer(GL_FRAMEBUFFER, gpuGrid.m_velocityFboB);
+			}
+			else
+			{
+				// read b, write a
+				glBindTexture(GL_TEXTURE_2D, gpuGrid.m_velocityTexB);
+				glBindFramebuffer(GL_FRAMEBUFFER, gpuGrid.m_velocityFboA);
+			}
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+		}  // res->m_velocityTexA
+
+		// diffuse density
+		//float density_a = time_step * 0.00001f * GRID_WIDTH * GRID_HEIGHT;
+		glUniform1f(glGetUniformLocation(diffuseShader.ID, "u_alpha"), a);
+		glUniform1f(glGetUniformLocation(diffuseShader.ID, "u_rBeta"), 1.0f / (1.0f + 4.0f * a));
+
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, gpuGrid.m_densityTexA); // adv res
+		glUniform1i(glGetUniformLocation(diffuseShader.ID, "u_b"), 1);
+
+		for (int i = 0; i < diffuse_iterations; ++i)
+		{
+			// set ux to 0
+			glActiveTexture(GL_TEXTURE0);
+			glUniform1i(glGetUniformLocation(diffuseShader.ID, "u_x"), 0);
+
+			if (i % 2 == 0)
+			{
+				// read a, write b
+				glBindTexture(GL_TEXTURE_2D, gpuGrid.m_densityTexA);
+				glBindFramebuffer(GL_FRAMEBUFFER, gpuGrid.m_densityFboB); // Typo fixed: FboB
+			}
+			else
+			{
+				// read b, write a
+				glBindTexture(GL_TEXTURE_2D, gpuGrid.m_densityTexB);
+				glBindFramebuffer(GL_FRAMEBUFFER, gpuGrid.m_densityFboA); // Typo fixed: FboA
+			}
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+		} // res->m_densityTexA
+
+		// PROJECT SHADERS
+		// divergenceSHADER
+		divergenceShader.use();
+		glUniform2f(glGetUniformLocation(divergenceShader.ID, "u_grid_size"), GRID_WIDTH, GRID_HEIGHT);
+
+		glBindFramebuffer(GL_FRAMEBUFFER, gpuGrid.m_divergenceFbo); // write to div
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, gpuGrid.m_velocityTexA); // read diff velo
+		glUniform1i(glGetUniformLocation(divergenceShader.ID, "u_velocity_field"), 0);
+
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+
+		// pressureSHADER
+		pressureShader.use();
+
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, gpuGrid.m_divergenceTex); // b
+		glUniform1i(glGetUniformLocation(pressureShader.ID, "u_divergence"), 1);
+
+		for (int i = 0; i < pressure_iterations; ++i)
+		{
+			glActiveTexture(GL_TEXTURE0);
+			glUniform1i(glGetUniformLocation(pressureShader.ID, "u_pressure"), 0);
+
+			if (i % 2 == 0) {
+				glBindTexture(GL_TEXTURE_2D, gpuGrid.m_pressureTexA);
+				glBindFramebuffer(GL_FRAMEBUFFER, gpuGrid.m_pressureFboB);
+			}
+			else {
+				glBindTexture(GL_TEXTURE_2D, gpuGrid.m_pressureTexB);
+				glBindFramebuffer(GL_FRAMEBUFFER, gpuGrid.m_pressureFboA);
+			}
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+		} // res->pressureTexA
+
+		// gradientSHADER
+		gradientShader.use();
+		glUniform2f(glGetUniformLocation(gradientShader.ID, "u_grid_size"), GRID_WIDTH, GRID_HEIGHT);
+
+		glBindFramebuffer(GL_FRAMEBUFFER, gpuGrid.m_velocityFboB); // write b
+
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, gpuGrid.m_velocityTexA); // read diffed velo
+		glUniform1i(glGetUniformLocation(gradientShader.ID, "u_velocity_field"), 0);
+
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, gpuGrid.m_pressureTexA); // read solved pressure
+		glUniform1i(glGetUniformLocation(gradientShader.ID, "u_pressure_field"), 1);
+
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+		gpuGrid.swapVelocityBuffers(); // swap, corrected velo(res)->velocityTexA
+
+		// advectSHADER
+		advectShader.use();
+		glUniform1f(glGetUniformLocation(advectShader.ID, "u_dt"), time_step);
+		glUniform2f(glGetUniformLocation(advectShader.ID, "u_grid_size"), GRID_WIDTH, GRID_HEIGHT);
+
+		// advect velocity
+		glBindFramebuffer(GL_FRAMEBUFFER, gpuGrid.m_velocityFboB); // write b
+
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, gpuGrid.m_velocityTexA); // vel a as field
+		glUniform1i(glGetUniformLocation(advectShader.ID, "u_velocity_field"), 0);
+
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, gpuGrid.m_velocityTexA); // move vel a
+		glUniform1i(glGetUniformLocation(advectShader.ID, "u_quantity_to_move"), 1);
+
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+		gpuGrid.swapVelocityBuffers(); // swap a-b
+		// RES->A
+
+		// advect density
+		glBindFramebuffer(GL_FRAMEBUFFER, gpuGrid.m_densityFboB); // write b
+
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, gpuGrid.m_velocityTexA); // use new vel a
+		glUniform1i(glGetUniformLocation(advectShader.ID, "u_velocity_field"), 0);
+
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, gpuGrid.m_densityTexA); // move dens a
+		glUniform1i(glGetUniformLocation(advectShader.ID, "u_quantity_to_move"), 1);
+
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+		gpuGrid.swapDensityBuffers(); // swap a-b
+		// RES->A
 
 		//// density/velocity input
 		//if (mouse.pressed)

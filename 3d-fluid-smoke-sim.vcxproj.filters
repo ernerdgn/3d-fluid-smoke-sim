@@ -54,5 +54,20 @@
     <None Include="clear.frag">
       <Filter>Shaders</Filter>
     </None>
+    <None Include="advect.frag">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="diffuse.frag">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="divergence.frag">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="pressure.frag">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="gradient.frag">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
 </Project>
