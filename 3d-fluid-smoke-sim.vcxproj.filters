@@ -75,10 +75,10 @@
     <None Include="vorticity.frag">
       <Filter>Shaders</Filter>
     </None>
-    <None Include="3d.vert">
+    <None Include="raymarch.vert">
       <Filter>Shaders</Filter>
     </None>
-    <None Include="3d.frag">
+    <None Include="raymarch.frag">
       <Filter>Shaders</Filter>
     </None>
   </ItemGroup>

@@ -6,6 +6,8 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <vector>
+#include <cmath>
 
 float cube_vertices[] = {
 	-0.5f, -0.5f, -0.5f,
@@ -51,11 +53,46 @@ float cube_vertices[] = {
 	-0.5f,  0.5f, -0.5f
 };
 
-// grid size
-const int GRID_WIDTH = 512;
-const int GRID_HEIGHT = 512;
-
 int g_DebugMode = 0; // 0: density, 1: velocity, 2: pressure
+
+GLuint create3DTexture(int width, int height, int depth)
+{
+	GLuint textureID;
+	glGenTextures(1, &textureID);
+	glBindTexture(GL_TEXTURE_3D, textureID);
+
+	// set tex params
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+	// test data
+	int size = width * height * depth;
+	std::vector<float> data(size);
+	for (int z = 0; z < depth; ++z)
+	{
+		for (int y = 0; y < height; ++y)
+		{
+			for (int x = 0; x < width; ++x)
+			{
+				// wave
+				float val = sin(x * 0.1f) * sin(y * 0.1f) + sin(z * 0.1f);
+				// normalize
+				data[x + y * width + z * width * height] = (val + 1.0f) * .5f;
+			}
+		}
+	}
+
+	// upload data
+	glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, width, height, depth, 0, GL_RED, GL_FLOAT, data.data());
+
+	// unbind
+	glBindTexture(GL_TEXTURE_3D, 0);
+	
+	return textureID;
+}
 
 int main()
 {
@@ -120,7 +157,16 @@ int main()
 	glBindVertexArray(0);
 
 	// load shaders
-	Shader cubeShader("3d.vert", "3d.frag");
+	Shader raymarchShader("raymarch.vert", "raymarch.frag");
+
+	// create 3d volume texture
+	const int GRID_WIDTH = 128;
+	const int GRID_HEIGHT = 128;
+	const int GRID_DEPTH = 128;
+	GLuint volume_texture = create3DTexture(GRID_WIDTH, GRID_HEIGHT, GRID_DEPTH);
+
+	// cam pos const
+	glm::vec3 camera_pos = glm::vec3(0.0, 0.0, 3.0);
 
 	glfwSetKeyCallback(window, [](GLFWwindow* window, int key, int scancode, int action, int mods)
 	{
@@ -200,7 +246,7 @@ int main()
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		// 3d cam math
-		cubeShader.use();
+		raymarchShader.use();
 
 		// proj mat (field of view)
 		glm::mat4 projection = glm::perspective(glm::radians(45.0f),
@@ -209,7 +255,7 @@ int main()
 		// view mat (cam pos)
 		// pos 0,0,3 - look at 0,0,0
 		glm::mat4 view = glm::lookAt(
-			glm::vec3(0.0, 0.0, 3.0),
+			camera_pos,
 			glm::vec3(0.0, 0.0, 0.0),
 			glm::vec3(0.0, 1.0, 0.0)
 		);
@@ -223,9 +269,16 @@ int main()
 		);
 
 		// send matrices to shader
-		glUniformMatrix4fv(glGetUniformLocation(cubeShader.ID, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
-		glUniformMatrix4fv(glGetUniformLocation(cubeShader.ID, "view"), 1, GL_FALSE, glm::value_ptr(view));
-		glUniformMatrix4fv(glGetUniformLocation(cubeShader.ID, "model"), 1, GL_FALSE, glm::value_ptr(model));
+		glUniformMatrix4fv(glGetUniformLocation(raymarchShader.ID, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+		glUniformMatrix4fv(glGetUniformLocation(raymarchShader.ID, "view"), 1, GL_FALSE, glm::value_ptr(view));
+		glUniformMatrix4fv(glGetUniformLocation(raymarchShader.ID, "model"), 1, GL_FALSE, glm::value_ptr(model));
+
+		// send tex and cam pos
+		//glUniform3fv(glGetUniformLocation(raymarchShader.ID, "u_cameraPos"), 1, glm::value_ptr(camera_pos));
+
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_3D, volume_texture); // <-- BIND 3D TEXTURE
+		glUniform1i(glGetUniformLocation(raymarchShader.ID, "u_volume_texture"), 0);
 
 		// draw cube
 		glBindVertexArray(VAO);
