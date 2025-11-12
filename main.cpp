@@ -133,8 +133,10 @@ int main()
 	glfwSetWindowSize(window, SCREEN_WIDTH, SCREEN_HEIGHT);
 	glViewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
-	// depth test
-	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_DEPTH_TEST); // depth test
+	glEnable(GL_BLEND); // transparency blending
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); // default alpha blending
+	glDisable(GL_CULL_FACE); // disable cull
 
 	/* 3D */
 	// setup cube vao vbo
@@ -246,6 +248,7 @@ int main()
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		// 3d cam math
+		// rayMarhc Shader
 		raymarchShader.use();
 
 		// proj mat (field of view)
@@ -268,17 +271,22 @@ int main()
 			glm::vec3(.5f, 1.0f, .0f)
 		);
 
+		// inv
+		glm::mat4 model_inv = glm::inverse(model);
+
 		// send matrices to shader
 		glUniformMatrix4fv(glGetUniformLocation(raymarchShader.ID, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
 		glUniformMatrix4fv(glGetUniformLocation(raymarchShader.ID, "view"), 1, GL_FALSE, glm::value_ptr(view));
 		glUniformMatrix4fv(glGetUniformLocation(raymarchShader.ID, "model"), 1, GL_FALSE, glm::value_ptr(model));
 
 		// send tex and cam pos
-		//glUniform3fv(glGetUniformLocation(raymarchShader.ID, "u_cameraPos"), 1, glm::value_ptr(camera_pos));
-
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_3D, volume_texture); // <-- BIND 3D TEXTURE
+		glUniformMatrix4fv(glGetUniformLocation(raymarchShader.ID, "u_model_inv"), 1, GL_FALSE, glm::value_ptr(model_inv));
+		glUniform3fv(glGetUniformLocation(raymarchShader.ID, "u_camera_pos"), 1, glm::value_ptr(camera_pos));
 		glUniform1i(glGetUniformLocation(raymarchShader.ID, "u_volume_texture"), 0);
+
+		// bind
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_3D, volume_texture);
 
 		// draw cube
 		glBindVertexArray(VAO);

@@ -1,17 +1,60 @@
 #version 430 core
 out vec4 FragColor;
 
+in vec3 v_worldPos;
 in vec3 v_texCoords;
 
+// uniforms
 uniform sampler3D u_volume_texture;
+uniform vec3 u_camera_pos;
+uniform mat4 u_model_inv;
 
 void main()
 {
-    float density = texture(u_volume_texture, v_texCoords).r;
+    // get ray dir from world space
+    vec3 ray_dir_world = normalize(v_worldPos - u_camera_pos);
+
+    // transform ray from world to model
+    vec3 ray_dir_model = (u_model_inv * vec4(ray_dir_world, 0.0)).xyz;
     
-    if (density < 0.1) {
-        discard;
+    // RAY MARCHING
+    
+    // ray starts from back
+    vec3 ray_pos = v_texCoords; 
+    
+    // step towards to cam
+    vec3 ray_step = normalize(ray_dir_model) * .01;
+    
+    vec4 accumulated_color = vec4(.0);
+    int num_steps = 64;
+
+    for (int i = 0; i < num_steps; i++)
+    {
+        // sample density
+        float density = texture(u_volume_texture, ray_pos).r;
+        
+        if (density > .1)
+        {
+            vec4 color = vec4(density, density, density, density * .1);
+            
+            // back to front
+            // newColor = (src_color * src_alpha) + (dst_color * (1-src_alpha))
+            
+            accumulated_color.rgb = (color.rgb * color.a) + (accumulated_color.rgb * (1.0 - color.a));
+            accumulated_color.a = color.a + (accumulated_color.a * (1.0 - color.a));
+        }
+        
+        // move ray
+        ray_pos += ray_step; // march forward
+        
+        // stop if exit or opaque
+        if (accumulated_color.a > 0.95 || 
+            any(lessThan(ray_pos, vec3(0.0))) || 
+            any(greaterThan(ray_pos, vec3(1.0))))
+        {
+            break;
+        }
     }
     
-    FragColor = vec4(density, density, density, 1.0);
+    FragColor = accumulated_color;
 }
