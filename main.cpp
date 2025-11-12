@@ -2,7 +2,7 @@
 #include <glad/glad.h>
 #include <glfw3.h>
 #include "shader.h"
-#include "GpuGrid.h"
+#include "GpuGrid3D.h"
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -53,46 +53,18 @@ float cube_vertices[] = {
 	-0.5f,  0.5f, -0.5f
 };
 
+float quad_vertices[] = {
+	// positions   // texCoords
+	-1.0f,  1.0f,  0.0f, 1.0f,
+	-1.0f, -1.0f,  0.0f, 0.0f,
+	 1.0f, -1.0f,  1.0f, 0.0f,
+	-1.0f,  1.0f,  0.0f, 1.0f,
+	 1.0f, -1.0f,  1.0f, 0.0f,
+	 1.0f,  1.0f,  1.0f, 1.0f
+};
+
 int g_DebugMode = 0; // 0: density, 1: velocity, 2: pressure
-
-GLuint create3DTexture(int width, int height, int depth)
-{
-	GLuint textureID;
-	glGenTextures(1, &textureID);
-	glBindTexture(GL_TEXTURE_3D, textureID);
-
-	// set tex params
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-
-	// test data
-	int size = width * height * depth;
-	std::vector<float> data(size);
-	for (int z = 0; z < depth; ++z)
-	{
-		for (int y = 0; y < height; ++y)
-		{
-			for (int x = 0; x < width; ++x)
-			{
-				// wave
-				float val = sin(x * 0.1f) * sin(y * 0.1f) + sin(z * 0.1f);
-				// normalize
-				data[x + y * width + z * width * height] = (val + 1.0f) * .5f;
-			}
-		}
-	}
-
-	// upload data
-	glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, width, height, depth, 0, GL_RED, GL_FLOAT, data.data());
-
-	// unbind
-	glBindTexture(GL_TEXTURE_3D, 0);
-	
-	return textureID;
-}
+int g_current_slice = 64;  // start from mid
 
 int main()
 {
@@ -131,7 +103,7 @@ int main()
 	const int SCREEN_WIDTH = 512;
 	const int SCREEN_HEIGHT = 512;
 	glfwSetWindowSize(window, SCREEN_WIDTH, SCREEN_HEIGHT);
-	glViewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+	//glViewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
 	glEnable(GL_DEPTH_TEST); // depth test
 	glEnable(GL_BLEND); // transparency blending
@@ -140,35 +112,63 @@ int main()
 
 	/* 3D */
 	// setup cube vao vbo
-	unsigned int VBO, VAO;
-	glGenVertexArrays(1, &VAO);
+	unsigned int cubeVBO, cubeVAO;
+	glGenVertexArrays(1, &cubeVAO);
 
-	glGenBuffers(1, &VBO);
+	glGenBuffers(1, &cubeVBO);
 
-	glBindVertexArray(VAO);
+	glBindVertexArray(cubeVAO);
 
-	glBindBuffer(GL_ARRAY_BUFFER, VBO);
+	glBindBuffer(GL_ARRAY_BUFFER, cubeVBO);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(cube_vertices), cube_vertices, GL_STATIC_DRAW);
 
 	// read data, 3*float
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(0);
 
+	/* 2D */
+	// setup quad vao vbo
+	unsigned int quadVBO, quadVAO;
+	glGenVertexArrays(1, &quadVAO);
+	glGenBuffers(1, &quadVBO);
+	glBindVertexArray(quadVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(quad_vertices), quad_vertices, GL_STATIC_DRAW);
+	// pos
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(0);
+	// tex
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+	glEnableVertexAttribArray(1);
+
 	// unbind
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	//glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindVertexArray(0);
 
 	// load shaders
 	Shader raymarchShader("raymarch.vert", "raymarch.frag");
+	Shader clearShader("quad.vert", "clear.frag");
+	Shader splatShader("quad.vert", "splat3d.frag");
+	Shader wireframeShader("wireframe.vert", "wireframe.frag");
+	Shader advectShader("quad.vert", "advect3d.frag");
+	Shader diffuseShader("quad.vert", "diffuse3d.frag");
 
-	// create 3d volume texture
+	// create 3d grid
 	const int GRID_WIDTH = 128;
 	const int GRID_HEIGHT = 128;
 	const int GRID_DEPTH = 128;
-	GLuint volume_texture = create3DTexture(GRID_WIDTH, GRID_HEIGHT, GRID_DEPTH);
+	GpuGrid3D gpuGrid(GRID_WIDTH, GRID_HEIGHT, GRID_DEPTH);
 
-	// cam pos const
-	glm::vec3 camera_pos = glm::vec3(0.0, 0.0, 3.0);
+	// clear grid
+	glBindVertexArray(quadVAO);
+	gpuGrid.clear(clearShader);
+
+	
+	glm::vec3 camera_pos = glm::vec3(.0, .0, 3.0); // cam pos const
+	float dt = .1; // delta time
+	double last_frame_time = glfwGetTime();
+	float viscosity = .0001f;
+	int diffuse_iterations = 20;
 
 	glfwSetKeyCallback(window, [](GLFWwindow* window, int key, int scancode, int action, int mods)
 	{
@@ -192,6 +192,16 @@ int main()
 				std::cout << "dispMode pressure" << std::endl;
 				g_DebugMode = 2;
 			}
+			//else if (key == GLFW_KEY_W)
+			//{
+			//	g_current_slice = glm::min(GRID_DEPTH - 1, g_current_slice + 1);
+			//	std::cout << "slice: " << g_current_slice << std::endl;
+			//}
+			//else if (key == GLFW_KEY_S)
+			//{
+			//	g_current_slice = glm::max(0, g_current_slice - 1);
+			//	std::cout << "slice: " << g_current_slice << std::endl;
+			//}
 		}
 	});
 
@@ -229,10 +239,51 @@ int main()
 	// main loop
 	while (!glfwWindowShouldClose(window))
 	{
+		// time
+		double current_time = glfwGetTime();
+		dt = (float)(current_time - last_frame_time);
+		last_frame_time = current_time;
+		//dt = .016f;
+
 		// INPUT
 		glfwPollEvents();
 
+		if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+		{
+			g_current_slice = glm::min(GRID_DEPTH - 1, g_current_slice + 1);
+			std::cout << "slice: " << g_current_slice << std::endl;
+		}
+		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+		{
+			g_current_slice = glm::max(0, g_current_slice - 1);
+			std::cout << "slice: " << g_current_slice << std::endl;
+		}
+
 		//
+		
+		glBindVertexArray(quadVAO);
+
+		// get 3d mouse pos
+		// scale down screen coords
+		float gridX = (mouse.x / SCREEN_WIDTH) * GRID_WIDTH;
+		float gridY = ((SCREEN_HEIGHT - mouse.y) / SCREEN_HEIGHT) * GRID_HEIGHT;
+
+		glm::vec3 mouse_pos3D = glm::vec3(gridX, gridY, g_current_slice);
+
+		glm::vec2 mouse_vel2D = glm::vec2(gridX, gridY) - lastMousePos;
+		lastMousePos = glm::vec2(gridX, gridY);
+
+		glm::vec3 mouse_vel3D = glm::vec3(mouse_vel2D.x, -mouse_vel2D.y, 0.0f) * 5.0f;
+
+		/////////////////////////////////////////////////////
+		gpuGrid.step(splatShader, advectShader, diffuseShader,
+			mouse_pos3D, mouse_vel3D, mouse.pressed,
+			dt, viscosity, diffuse_iterations);
+		/////////////////////////////////////////////////////
+
+
+		// 
+		// 
 		//
 		//
 		// SIMULATION
@@ -286,19 +337,41 @@ int main()
 
 		// bind
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_3D, volume_texture);
+		glBindTexture(GL_TEXTURE_3D, gpuGrid.getDensityTexture());
 
 		// draw cube
-		glBindVertexArray(VAO);
+		glBindVertexArray(cubeVAO);
 		glDrawArrays(GL_TRIANGLES, 0, 36);
+
+		// render pass 2, wireframe
+
+		// draw lines
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+		// wireframe SHADER
+		wireframeShader.use();
+
+		// same cam matrices
+		glUniformMatrix4fv(glGetUniformLocation(wireframeShader.ID, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+		glUniformMatrix4fv(glGetUniformLocation(wireframeShader.ID, "view"), 1, GL_FALSE, glm::value_ptr(view));
+		glUniformMatrix4fv(glGetUniformLocation(wireframeShader.ID, "model"), 1, GL_FALSE, glm::value_ptr(model));
+
+		// draw cube
+		glBindVertexArray(cubeVAO);
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+
+		// set openGL fill mode
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
 		// swap buffers
 		glfwSwapBuffers(window);
 	}
 
 	// clean
-	glDeleteVertexArrays(1, &VAO);
-	glDeleteBuffers(1, &VBO);
+	glDeleteVertexArrays(1, &cubeVAO);
+	glDeleteBuffers(1, &cubeVBO);
+	glDeleteVertexArrays(1, &quadVAO);
+	glDeleteBuffers(1, &quadVBO);
 	glfwTerminate();
 	return 0;
 }

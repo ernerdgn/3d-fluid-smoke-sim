@@ -18,6 +18,7 @@ void main()
 	float dist = distance(gl_FragCoord.xy, u_mouse_pos);
 
 	float splat = exp(-dist / u_radius) * float(u_is_bouncing);
+	//float splat = exp(-dist / u_radius);
 
 	FragColor = read_val + vec4(u_force, 1.0) * splat;
 	FragColor.a = 1.0;

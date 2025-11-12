@@ -32,16 +32,16 @@ void main()
     {
         // sample density
         float density = texture(u_volume_texture, ray_pos).r;
-        
-        if (density > .1)
+        //float display_density = density * .1;
+
+        if (density > .01)
         {
-            vec4 color = vec4(density, density, density, density * .1);
-            
-            // back to front
-            // newColor = (src_color * src_alpha) + (dst_color * (1-src_alpha))
-            
-            accumulated_color.rgb = (color.rgb * color.a) + (accumulated_color.rgb * (1.0 - color.a));
-            accumulated_color.a = color.a + (accumulated_color.a * (1.0 - color.a));
+            float constant_alpha = .05;
+
+            vec3 color = vec3(1.0, 1.0, 1.0) * density;
+
+            accumulated_color.rgb = (color * constant_alpha) + (accumulated_color.rgb * (1.0 - constant_alpha));
+            accumulated_color.a = constant_alpha + (accumulated_color.a * (1.0 - constant_alpha));
         }
         
         // move ray

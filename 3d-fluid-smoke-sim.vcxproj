@@ -128,6 +128,7 @@
   <ItemGroup>
     <ClCompile Include="FluidGrid.cpp" />
     <ClCompile Include="GpuGrid.cpp" />
+    <ClCompile Include="GpuGrid3D.cpp" />
     <ClCompile Include="libs\glad\src\glad.c" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="shader.cpp" />
@@ -135,9 +136,12 @@
   <ItemGroup>
     <ClInclude Include="FluidGrid.h" />
     <ClInclude Include="GpuGrid.h" />
+    <ClInclude Include="GpuGrid3D.h" />
     <ClInclude Include="shader.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="advect3d.frag" />
+    <None Include="diffuse3d.frag" />
     <None Include="raymarch.frag" />
     <None Include="raymarch.vert" />
     <None Include="advect.frag" />
@@ -150,7 +154,10 @@
     <None Include="quad.frag" />
     <None Include="quad.vert" />
     <None Include="splat.frag" />
+    <None Include="splat3d.frag" />
     <None Include="vorticity.frag" />
+    <None Include="wireframe.frag" />
+    <None Include="wireframe.vert" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

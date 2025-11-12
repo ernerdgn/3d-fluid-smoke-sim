@@ -29,6 +29,9 @@
     <ClCompile Include="GpuGrid.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="GpuGrid3D.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="shader.h">
@@ -38,6 +41,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="GpuGrid.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GpuGrid3D.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -79,6 +85,21 @@
       <Filter>Shaders</Filter>
     </None>
     <None Include="raymarch.frag">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="splat3d.frag">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="wireframe.vert">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="wireframe.frag">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="advect3d.frag">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="diffuse3d.frag">
       <Filter>Shaders</Filter>
     </None>
   </ItemGroup>
