@@ -75,5 +75,11 @@
     <None Include="vorticity.frag">
       <Filter>Shaders</Filter>
     </None>
+    <None Include="3d.vert">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="3d.frag">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
 </Project>
