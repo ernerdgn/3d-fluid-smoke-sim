@@ -137,3 +137,22 @@ cmake ..
 cmake --build .
 ```
 
+---
+
+## Controls
+- LMB: Splat (add) density and velocity.
+
+- RMB (Hold): Rotate the 3D camera.
+
+- 'D' Key: Show Density (Rendered Volume).
+
+- 'V' Key: Show Velocity (Debug 2D).
+
+- 'P' Key: Show Pressure (Debug 2D).
+
+---
+
+## TODO
+- 3D Vorticity Confinement: Implement the 3D version of curl to add back small-scale, turbulent details.
+
+- Enable other display modes for 3D debug.
