@@ -145,6 +145,12 @@ int main()
 	
 	glm::vec3 camera_pos = glm::vec3(.0, .0, 3.0); // cam pos const
 	float dt = .1; // delta time
+	glm::vec2 total_rotation = glm::vec2(.0f); // mouse rotation
+	glm::vec2 last_mouse_pos_cam = glm::vec2(.0f);
+	float rotation_speed = .1f;
+
+
+	////////
 	double last_frame_time = glfwGetTime();
 	float viscosity = .0001f;
 	int diffuse_iterations = 20;
@@ -187,9 +193,12 @@ int main()
 	// mouse interaction
 	struct MouseState
 	{
-		bool pressed = false;
+		bool left_pressed = false;
+		bool right_pressed = false;
 		double x = 0.0;
 		double y = 0.0;
+		double lastX_cam = .0;
+		double lastY_cam = .0;
 	} mouse;
 
 	glfwSetMouseButtonCallback(window, [](GLFWwindow* window, int button, int action, int mods)
@@ -198,9 +207,20 @@ int main()
 			if (button == GLFW_MOUSE_BUTTON_LEFT)
 			{
 				if (action == GLFW_PRESS)
-					mouse->pressed = true;
+					mouse->left_pressed = true;
 				else if (action == GLFW_RELEASE)
-					mouse->pressed = false;
+					mouse->left_pressed = false;
+			}
+			else if (button == GLFW_MOUSE_BUTTON_RIGHT)
+			{
+				if (action == GLFW_PRESS)
+				{
+					mouse->right_pressed = true;
+					mouse->lastX_cam = mouse->x;
+					mouse->lastY_cam = mouse->y;
+				}
+				else if (action == GLFW_RELEASE)
+					mouse->right_pressed = false;
 			}
 		});
 
@@ -255,9 +275,20 @@ int main()
 		/////////////////////////////////////////////////////
 		gpuGrid.step(splatShader,
 			mouse_pos3D, mouse_vel3D,
-			mouse.pressed);
+			mouse.left_pressed);
 		/////////////////////////////////////////////////////
+		// cam rotation
+		if (mouse.right_pressed)
+		{
+			float deltaX = (float)(mouse.x - mouse.lastX_cam);
+			float deltaY = (float)(mouse.y - mouse.lastY_cam);
 
+			total_rotation.y += deltaX * rotation_speed;
+			total_rotation.x += deltaY * rotation_speed;
+
+			mouse.lastX_cam = mouse.x;
+			mouse.lastY_cam = mouse.y;
+		}
 
 		// 
 		// 
@@ -293,10 +324,17 @@ int main()
 
 		// model mat (obj pos/rot), rotation over time to see 3d
 		glm::mat4 model = glm::mat4(1.0f);
+		// y-axis rot
 		model = glm::rotate(
 			model,
-			(float)glfwGetTime() * glm::radians(50.0f),
-			glm::vec3(.5f, 1.0f, .0f)
+			glm::radians(total_rotation.y),
+			glm::vec3(.0f, 1.0f, .0f)
+		);
+		// x-axis rot
+		model = glm::rotate(
+			model,
+			glm::radians(total_rotation.x),
+			glm::vec3(1.0f, .0f, .0f)
 		);
 
 		// inv
