@@ -1,4 +1,4 @@
-# Real-Time 2D & 3D Fluid Simulator
+# Real-Time 2D & 3D Fluid/Smoke Simulator
 
 ![C++](https://img.shields.io/badge/C++-blue.svg)
 ![OpenGL](https://img.shields.io/badge/OpenGL-4.3+-brightgreen.svg)
@@ -23,7 +23,7 @@ This project is a high-performance fluid and smoke simulator built from scratch 
 
 ---
 
-## ## Features
+## Features
 
 * **Real-Time 3D Simulation:** A `64x64x64` (or higher) grid is simulated and rendered at interactive framerates.
 * **GPU-Accelerated Physics:** All physics calculations (`advect`, `diffuse`, `project`) are ported from the CPU to high-performance OpenGL Compute Shaders.
