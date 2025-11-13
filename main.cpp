@@ -63,8 +63,26 @@ float cube_vertices[] = {
 //	 1.0f,  1.0f,  1.0f, 1.0f
 //};
 
+bool rayPlaneIntersect(
+	const glm::vec3& rayOrigin,const glm::vec3& rayDir,
+	const glm::vec3& planeOrigin, const glm::vec3& planeNormal,
+	glm::vec3& outIntersection)
+{
+	float denom = glm::dot(planeNormal, rayDir);
+	if (abs(denom) > 1e-6)  // is parallel
+	{
+		float t = glm::dot(planeOrigin - rayOrigin, planeNormal) / denom;
+		if (t >= 0)
+		{
+			outIntersection = rayOrigin + t * rayDir;
+			return true;
+		}
+	}
+	return false;
+}
+
 int g_DebugMode = 0; // 0: density, 1: velocity, 2: pressure
-int g_current_slice = 64;  // start from mid
+//int g_current_slice = 64;  // start from mid
 
 int main()
 {
@@ -240,7 +258,7 @@ int main()
 
 	glfwSetWindowUserPointer(window, &mouse);
 
-	glm::vec2 lastMousePos = glm::vec2(.0f);
+	glm::vec3 lastMousePos = glm::vec3(.0f);
 
 	// main loop
 	while (!glfwWindowShouldClose(window))
@@ -254,83 +272,18 @@ int main()
 		// INPUT
 		glfwPollEvents();
 
-		if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-		{
-			g_current_slice = glm::min(GRID_DEPTH - 1, g_current_slice + 1);
-			std::cout << "slice: " << g_current_slice << std::endl;
-		}
-		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-		{
-			g_current_slice = glm::max(0, g_current_slice - 1);
-			std::cout << "slice: " << g_current_slice << std::endl;
-		}
-
-		//
-
-		// get 3d mouse pos
-		// scale down screen coords
-		float gridX = (mouse.x / SCREEN_WIDTH) * GRID_WIDTH;
-		float gridY = ((SCREEN_HEIGHT - mouse.y) / SCREEN_HEIGHT) * GRID_HEIGHT;
-
-		glm::vec3 mouse_pos3D = glm::vec3(gridX, gridY, g_current_slice);
-
-		glm::vec2 mouse_vel2D = glm::vec2(gridX, gridY) - lastMousePos;
-		lastMousePos = glm::vec2(gridX, gridY);
-
-		glm::vec3 mouse_vel3D = glm::vec3(mouse_vel2D.x, -mouse_vel2D.y, 0.0f) * 5.0f;
-
-		/////////////////////////////////////////////////////
-		gpuGrid.step(splatShader, advectShader, diffuseShader,
-			divergenceShader, pressureShader, gradientShader, // Add shaders
-			mouse_pos3D, mouse_vel3D, mouse.left_pressed, dt,
-			viscosity, diffuse_iterations, pressure_iterations);
-		/////////////////////////////////////////////////////
-		// cam rotation
-		if (mouse.right_pressed)
-		{
-			float deltaX = (float)(mouse.x - mouse.lastX_cam);
-			float deltaY = (float)(mouse.y - mouse.lastY_cam);
-
-			total_rotation.y += deltaX * rotation_speed;
-			total_rotation.x += deltaY * rotation_speed;
-
-			mouse.lastX_cam = mouse.x;
-			mouse.lastY_cam = mouse.y;
-		}
-
-		// 
-		// 
-		//
-		//
-		// SIMULATION
-		//
-		//
-		//
-
-		// RENDER
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		glViewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-
-		glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-		// 3d cam math
-		// rayMarhc Shader
-		raymarchShader.use();
-
 		// proj mat (field of view)
 		glm::mat4 projection = glm::perspective(glm::radians(45.0f),
 			(float)SCREEN_WIDTH / (float)SCREEN_HEIGHT, 0.1f, 100.0f);
 
 		// view mat (cam pos)
-		// pos 0,0,3 - look at 0,0,0
 		glm::mat4 view = glm::lookAt(
 			camera_pos,
 			glm::vec3(0.0, 0.0, 0.0),
 			glm::vec3(0.0, 1.0, 0.0)
 		);
 
-		// model mat (obj pos/rot), rotation over time to see 3d
+		// model mat (obj pos/rot)
 		glm::mat4 model = glm::mat4(1.0f);
 		// y-axis rot
 		model = glm::rotate(
@@ -348,45 +301,116 @@ int main()
 		// inv
 		glm::mat4 model_inv = glm::inverse(model);
 
-		// send matrices to shader
+		// cam rotation
+		if (mouse.right_pressed)
+		{
+			float deltaX = (float)(mouse.x - mouse.lastX_cam);
+			float deltaY = (float)(mouse.y - mouse.lastY_cam);
+
+			total_rotation.y += deltaX * rotation_speed;
+			total_rotation.x += deltaY * rotation_speed;
+
+			mouse.lastX_cam = mouse.x;
+			mouse.lastY_cam = mouse.y;
+		}
+
+		// 3d mouse splat for raycast
+		float normX = (2.0f * (float)mouse.x) / SCREEN_WIDTH - 1.0f;
+		float normY = 1.0f - (2.0f * (float)mouse.y) / SCREEN_HEIGHT;
+		float normZ = 1.0f;
+
+		glm::vec3 ray_ndc = glm::vec3(normX, normY, normZ);
+
+		glm::mat4 invVP = glm::inverse(projection * view);
+
+		glm::vec4 ray_world_4 = invVP * glm::vec4(ray_ndc, 1.0);
+		glm::vec3 ray_world = glm::vec3(ray_world_4) / ray_world_4.w;
+
+		glm::vec3 rayOrigin = camera_pos;
+		glm::vec3 rayDir = normalize(ray_world - rayOrigin);
+
+		glm::vec3 planeOrigin = glm::vec3(0.0, 0.0, 0.0);
+		glm::vec3 planeNormal = glm::vec3(0.0, 0.0, 1.0);
+		glm::vec3 intersectionPoint;
+
+		glm::vec3 mousePos3D_grid = glm::vec3(0.0);
+		glm::vec3 mouse_vel3D_model = glm::vec3(0.0);
+		bool mouseIsIntersecting = false;
+
+		glm::vec3 mousePos3D_world = glm::vec3(0.0);
+
+		if (rayPlaneIntersect(rayOrigin, rayDir, planeOrigin, planeNormal, intersectionPoint))
+		{
+			mouseIsIntersecting = true;
+			mousePos3D_world = intersectionPoint;
+
+			glm::vec3 mouse_vel3D_world = glm::vec3(0.0);
+			if (lastMousePos != glm::vec3(0.0f))
+			{
+				mouse_vel3D_world = (mousePos3D_world - lastMousePos) * 5.0f;
+			}
+			lastMousePos = mousePos3D_world;
+
+			glm::vec4 model_pos_4 = model_inv * glm::vec4(mousePos3D_world, 1.0);
+			glm::vec3 mousePos3D_model = glm::vec3(model_pos_4) / model_pos_4.w;
+
+			glm::vec4 model_vel_4 = model_inv * glm::vec4(mouse_vel3D_world, 0.0);
+			mouse_vel3D_model = glm::vec3(model_vel_4);
+
+			mousePos3D_grid = (mousePos3D_model + 0.5f) * glm::vec3(GRID_WIDTH, GRID_HEIGHT, GRID_DEPTH);
+		}
+		else
+		{
+			lastMousePos = glm::vec3(0.0f);
+		}
+
+		/////////////////////////////////////////////////////
+		// step
+		gpuGrid.step(splatShader, advectShader, diffuseShader,
+			divergenceShader, pressureShader, gradientShader,
+			mousePos3D_grid, mouse_vel3D_model, // <-- Pass the new corrected values
+			mouse.left_pressed && mouseIsIntersecting,
+			dt,
+			viscosity, diffuse_iterations, pressure_iterations);
+		/////////////////////////////////////////////////////
+
+		// render
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glViewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+		glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		// pass raymarch
+		raymarchShader.use();
+
 		glUniformMatrix4fv(glGetUniformLocation(raymarchShader.ID, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
 		glUniformMatrix4fv(glGetUniformLocation(raymarchShader.ID, "view"), 1, GL_FALSE, glm::value_ptr(view));
 		glUniformMatrix4fv(glGetUniformLocation(raymarchShader.ID, "model"), 1, GL_FALSE, glm::value_ptr(model));
-
-		// send tex and cam pos
 		glUniformMatrix4fv(glGetUniformLocation(raymarchShader.ID, "u_model_inv"), 1, GL_FALSE, glm::value_ptr(model_inv));
 		glUniform3fv(glGetUniformLocation(raymarchShader.ID, "u_camera_pos"), 1, glm::value_ptr(camera_pos));
 		glUniform1i(glGetUniformLocation(raymarchShader.ID, "u_volume_texture"), 0);
 
-		// bind
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_3D, gpuGrid.getDensityTexture());
 
-		// draw cube
 		glBindVertexArray(cubeVAO);
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 
-		// render pass 2, wireframe
-
-		// draw lines
+		// --- Pass 2: Wireframe ---
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-
-		// wireframe SHADER
 		wireframeShader.use();
 
-		// same cam matrices
+		// --- NO REDEFINITION ---
 		glUniformMatrix4fv(glGetUniformLocation(wireframeShader.ID, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
 		glUniformMatrix4fv(glGetUniformLocation(wireframeShader.ID, "view"), 1, GL_FALSE, glm::value_ptr(view));
 		glUniformMatrix4fv(glGetUniformLocation(wireframeShader.ID, "model"), 1, GL_FALSE, glm::value_ptr(model));
 
-		// draw cube
 		glBindVertexArray(cubeVAO);
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 
-		// set openGL fill mode
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-		// swap buffers
 		glfwSwapBuffers(window);
 	}
 
