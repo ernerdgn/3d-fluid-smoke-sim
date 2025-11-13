@@ -10,11 +10,11 @@ public:
 	GpuGrid3D(int width, int height, int depth);
 	~GpuGrid3D();
 
-	void step(Shader& splatShader, Shader& advectShader, Shader& diffuseShader,
+	void step(Shader& splatShader, 
 		const glm::vec3& mouse_pos3D, const glm::vec3& mouse_vel,
-		bool is_bouncing, float delta_time, float viscosity, int diffuse_iterations);
+		bool is_bouncing);
 
-	void clear(Shader& clearShader);
+	void clear(Shader& clearComputeShader);
 
 	void swapDensityBuffers();
 	void swapVelocityBuffers();
@@ -25,8 +25,6 @@ public:
 public:
 	int m_width, m_height, m_depth;
 
-	GLuint m_fbo;
-
 	// ping-pong buffers (single R comp)
 	GLuint m_densityTexA, m_densityTexB;
 
@@ -35,4 +33,6 @@ public:
 
 private:
 	GLuint create3DTexture(int internal_format, int format);
+
+	void getWorkGroups(GLuint& groupsX, GLuint& groupsY, GLuint& groupsZ);
 };

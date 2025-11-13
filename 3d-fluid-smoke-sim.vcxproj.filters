@@ -102,5 +102,11 @@
     <None Include="diffuse3d.frag">
       <Filter>Shaders</Filter>
     </None>
+    <None Include="clear.comp">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="splat.comp">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
 </Project>

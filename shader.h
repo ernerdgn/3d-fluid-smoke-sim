@@ -8,6 +8,7 @@ public:
 
 	// read and build shader
 	Shader(const char* vertexPath, const char* fragmentPath);
+	Shader(const char* computePath);
 
 	// use shader
 	void use();

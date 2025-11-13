@@ -1,0 +1,25 @@
+#version 430 core
+layout (local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
+
+layout (rgba32f, binding = 0) uniform readonly image3D u_readTexture;
+layout (rgba32f, binding = 1) uniform writeonly image3D u_writeTexture;
+
+// uniforms
+uniform vec3 u_brush_center3D; 
+uniform float u_radius;
+uniform int u_is_bouncing;
+uniform vec3 u_force;
+
+void main()
+{
+    ivec3 texel_coord = ivec3(gl_GlobalInvocationID.xyz);
+    
+    vec4 read_val = imageLoad(u_readTexture, texel_coord);
+
+    float dist = distance(vec3(texel_coord), u_brush_center3D);
+
+    float splat = exp(-dist / u_radius) * float(u_is_bouncing);
+    
+    vec4 write_val = read_val + vec4(u_force, 0.0) * splat;
+    imageStore(u_writeTexture, texel_coord, write_val);
+}

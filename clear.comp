@@ -1,0 +1,17 @@
+#version 430 core
+
+// work group
+// 8x8x8=512 threads per group
+layout (local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
+
+// write texture
+layout (rgba32f, binding = 0) uniform writeonly image3D u_writeTexture;
+
+void main()
+{
+    // xyz of texel
+    ivec3 texelCoord = ivec3(gl_GlobalInvocationID.xyz);
+
+    // write
+    imageStore(u_writeTexture, texelCoord, vec4(.0, .0, .0, .0));
+}

@@ -53,15 +53,15 @@ float cube_vertices[] = {
 	-0.5f,  0.5f, -0.5f
 };
 
-float quad_vertices[] = {
-	// positions   // texCoords
-	-1.0f,  1.0f,  0.0f, 1.0f,
-	-1.0f, -1.0f,  0.0f, 0.0f,
-	 1.0f, -1.0f,  1.0f, 0.0f,
-	-1.0f,  1.0f,  0.0f, 1.0f,
-	 1.0f, -1.0f,  1.0f, 0.0f,
-	 1.0f,  1.0f,  1.0f, 1.0f
-};
+//float quad_vertices[] = {
+//	// positions   // texCoords
+//	-1.0f,  1.0f,  0.0f, 1.0f,
+//	-1.0f, -1.0f,  0.0f, 0.0f,
+//	 1.0f, -1.0f,  1.0f, 0.0f,
+//	-1.0f,  1.0f,  0.0f, 1.0f,
+//	 1.0f, -1.0f,  1.0f, 0.0f,
+//	 1.0f,  1.0f,  1.0f, 1.0f
+//};
 
 int g_DebugMode = 0; // 0: density, 1: velocity, 2: pressure
 int g_current_slice = 64;  // start from mid
@@ -126,32 +126,12 @@ int main()
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(0);
 
-	/* 2D */
-	// setup quad vao vbo
-	unsigned int quadVBO, quadVAO;
-	glGenVertexArrays(1, &quadVAO);
-	glGenBuffers(1, &quadVBO);
-	glBindVertexArray(quadVAO);
-	glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(quad_vertices), quad_vertices, GL_STATIC_DRAW);
-	// pos
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
-	glEnableVertexAttribArray(0);
-	// tex
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
-	glEnableVertexAttribArray(1);
-
-	// unbind
-	//glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindVertexArray(0);
-
 	// load shaders
 	Shader raymarchShader("raymarch.vert", "raymarch.frag");
-	Shader clearShader("quad.vert", "clear.frag");
-	Shader splatShader("quad.vert", "splat3d.frag");
+	Shader clearShader("clear.comp");
+	Shader splatShader("splat.comp");
 	Shader wireframeShader("wireframe.vert", "wireframe.frag");
 	Shader advectShader("quad.vert", "advect3d.frag");
-	Shader diffuseShader("quad.vert", "diffuse3d.frag");
 
 	// create 3d grid
 	const int GRID_WIDTH = 128;
@@ -160,7 +140,6 @@ int main()
 	GpuGrid3D gpuGrid(GRID_WIDTH, GRID_HEIGHT, GRID_DEPTH);
 
 	// clear grid
-	glBindVertexArray(quadVAO);
 	gpuGrid.clear(clearShader);
 
 	
@@ -260,8 +239,6 @@ int main()
 		}
 
 		//
-		
-		glBindVertexArray(quadVAO);
 
 		// get 3d mouse pos
 		// scale down screen coords
@@ -276,9 +253,9 @@ int main()
 		glm::vec3 mouse_vel3D = glm::vec3(mouse_vel2D.x, -mouse_vel2D.y, 0.0f) * 5.0f;
 
 		/////////////////////////////////////////////////////
-		gpuGrid.step(splatShader, advectShader, diffuseShader,
-			mouse_pos3D, mouse_vel3D, mouse.pressed,
-			dt, viscosity, diffuse_iterations);
+		gpuGrid.step(splatShader,
+			mouse_pos3D, mouse_vel3D,
+			mouse.pressed);
 		/////////////////////////////////////////////////////
 
 
@@ -370,8 +347,6 @@ int main()
 	// clean
 	glDeleteVertexArrays(1, &cubeVAO);
 	glDeleteBuffers(1, &cubeVBO);
-	glDeleteVertexArrays(1, &quadVAO);
-	glDeleteBuffers(1, &quadVBO);
 	glfwTerminate();
 	return 0;
 }

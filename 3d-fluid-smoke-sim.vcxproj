@@ -141,6 +141,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="advect3d.frag" />
+    <None Include="clear.comp" />
     <None Include="diffuse3d.frag" />
     <None Include="raymarch.frag" />
     <None Include="raymarch.vert" />
@@ -153,6 +154,7 @@
     <None Include="pressure.frag" />
     <None Include="quad.frag" />
     <None Include="quad.vert" />
+    <None Include="splat.comp" />
     <None Include="splat.frag" />
     <None Include="splat3d.frag" />
     <None Include="vorticity.frag" />
