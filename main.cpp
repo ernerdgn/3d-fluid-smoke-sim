@@ -368,7 +368,7 @@ int main()
 		// step
 		gpuGrid.step(splatShader, advectShader, diffuseShader,
 			divergenceShader, pressureShader, gradientShader,
-			mousePos3D_grid, mouse_vel3D_model, // <-- Pass the new corrected values
+			mousePos3D_grid, mouse_vel3D_model,
 			mouse.left_pressed && mouseIsIntersecting,
 			dt,
 			viscosity, diffuse_iterations, pressure_iterations);
