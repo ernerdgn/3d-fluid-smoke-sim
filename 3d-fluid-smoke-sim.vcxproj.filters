@@ -87,25 +87,31 @@
     <None Include="raymarch.frag">
       <Filter>Shaders</Filter>
     </None>
-    <None Include="splat3d.frag">
-      <Filter>Shaders</Filter>
-    </None>
     <None Include="wireframe.vert">
       <Filter>Shaders</Filter>
     </None>
     <None Include="wireframe.frag">
       <Filter>Shaders</Filter>
     </None>
-    <None Include="advect3d.frag">
-      <Filter>Shaders</Filter>
-    </None>
-    <None Include="diffuse3d.frag">
-      <Filter>Shaders</Filter>
-    </None>
     <None Include="clear.comp">
       <Filter>Shaders</Filter>
     </None>
     <None Include="splat.comp">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="advect.comp">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="diffuse.comp">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="divergence.comp">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="pressure.comp">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="gradient.comp">
       <Filter>Shaders</Filter>
     </None>
   </ItemGroup>

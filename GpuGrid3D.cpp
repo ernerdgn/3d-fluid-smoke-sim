@@ -32,15 +32,21 @@ GpuGrid3D::GpuGrid3D(int width, int height, int depth)
     // velo
     m_velocityTexA = create3DTexture(GL_RGBA32F, GL_RGBA);
     m_velocityTexB = create3DTexture(GL_RGBA32F, GL_RGBA);
+
+    // div - pressure
+    m_divergenceTex = create3DTexture(GL_RGBA32F, GL_RGBA);
+    m_pressureTexA = create3DTexture(GL_RGBA32F, GL_RGBA);
+    m_pressureTexB = create3DTexture(GL_RGBA32F, GL_RGBA);
 }
 
 GpuGrid3D::~GpuGrid3D()
 {
     GLuint textures[] = {
         m_densityTexA, m_densityTexB,
-        m_velocityTexA, m_velocityTexB
+        m_velocityTexA, m_velocityTexB,
+        m_divergenceTex, m_pressureTexA, m_pressureTexB
     };
-    glDeleteTextures(4, textures);
+    glDeleteTextures(7, textures);
 }
 
 void GpuGrid3D::clear(Shader& clearComputeShader)
@@ -52,7 +58,8 @@ void GpuGrid3D::clear(Shader& clearComputeShader)
 
     GLuint texturesToClear[] = {
         m_densityTexA, m_densityTexB,
-        m_velocityTexA, m_velocityTexB
+        m_velocityTexA, m_velocityTexB,
+        m_divergenceTex, m_pressureTexA, m_pressureTexB
     };
 
     for (GLuint tex : texturesToClear)
@@ -79,9 +86,11 @@ void GpuGrid3D::swapVelocityBuffers()
     std::swap(m_velocityTexA, m_velocityTexB);
 }
 
-void GpuGrid3D::step(Shader& splatShader,
+void GpuGrid3D::step(Shader& splatShader, Shader& advectShader, Shader& diffuseShader,
+    Shader& divergenceShader, Shader& pressureShader, Shader& gradientShader,
     const glm::vec3& mouse_pos3D, const glm::vec3& mouse_vel,
-    bool is_bouncing)
+    bool is_bouncing, float dt,
+    float viscosity, int diffuse_iterations, int pressure_iterations)
 {
     splatShader.use();
 
@@ -119,7 +128,174 @@ void GpuGrid3D::step(Shader& splatShader,
 
     swapDensityBuffers(); // res->texA
 
-    // TODO: ADV, DIFFUSE, PROJ
+    // diffuse
+    diffuseShader.use();
+
+    // 6.0f
+    float vel_a = dt * viscosity * m_width * m_width;
+    float vel_rBeta = 1.0f / (1.0f + 6.0f * vel_a);
+
+    float dens_a = dt * 0.00001f * m_width * m_width; // diff for smoke
+    float dens_rBeta = 1.0f / (1.0f + 6.0f * dens_a);
+
+    // diff velo
+    glUniform1f(glGetUniformLocation(diffuseShader.ID, "u_alpha"), vel_a);
+    glUniform1f(glGetUniformLocation(diffuseShader.ID, "u_rBeta"), vel_rBeta);
+
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_3D, m_velocityTexA);
+    glUniform1i(glGetUniformLocation(diffuseShader.ID, "u_b"), 1);
+
+    for (int i = 0; i < diffuse_iterations; ++i)
+    {
+        if (i % 2 == 0)
+        {
+            // Read from A (u_x), Write to B (u_writeTexture)
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_3D, m_velocityTexA);
+            glUniform1i(glGetUniformLocation(diffuseShader.ID, "u_x"), 0);
+            glBindImageTexture(2, m_velocityTexB, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+        }
+        else
+        {
+            // Read from B (u_x), Write to A (u_writeTexture)
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_3D, m_velocityTexB);
+            glUniform1i(glGetUniformLocation(diffuseShader.ID, "u_x"), 0);
+            glBindImageTexture(2, m_velocityTexA, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+        }
+        glDispatchCompute(workGroupsX, workGroupsY, workGroupsZ);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+    }
+    // i=18 (even): Read A, Write B
+    // i=19 (odd):  Read B, Write A.
+
+    // diff velo
+    glUniform1f(glGetUniformLocation(diffuseShader.ID, "u_alpha"), dens_a);
+    glUniform1f(glGetUniformLocation(diffuseShader.ID, "u_rBeta"), dens_rBeta);
+
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_3D, m_densityTexA);
+    glUniform1i(glGetUniformLocation(diffuseShader.ID, "u_b"), 1);
+
+    for (int i = 0; i < diffuse_iterations; ++i)
+    {
+        if (i % 2 == 0) {
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_3D, m_densityTexA);
+            glUniform1i(glGetUniformLocation(diffuseShader.ID, "u_x"), 0);
+            glBindImageTexture(2, m_densityTexB, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+        }
+        else {
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_3D, m_densityTexB);
+            glUniform1i(glGetUniformLocation(diffuseShader.ID, "u_x"), 0);
+            glBindImageTexture(2, m_densityTexA, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+        }
+        glDispatchCompute(workGroupsX, workGroupsY, workGroupsZ);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+    }
+
+    // divergence, pressure, gradient
+    divergenceShader.use();
+    glUniform3f(glGetUniformLocation(divergenceShader.ID, "u_gridSize"), (float)m_width, (float)m_height, (float)m_depth);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_3D, m_velocityTexA);
+    glUniform1i(glGetUniformLocation(divergenceShader.ID, "u_velocityField"), 0);
+
+    glBindImageTexture(2, m_divergenceTex, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+
+    glDispatchCompute(workGroupsX, workGroupsY, workGroupsZ);
+    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+
+    // pressure
+    pressureShader.use();
+
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_3D, m_divergenceTex);
+    glUniform1i(glGetUniformLocation(pressureShader.ID, "u_divergence"), 1);
+
+    for (int i = 0; i < pressure_iterations; ++i)
+    {
+        if (i % 2 == 0)
+        {
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_3D, m_pressureTexA);
+            glUniform1i(glGetUniformLocation(pressureShader.ID, "u_pressure"), 0);
+            glBindImageTexture(2, m_pressureTexB, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+        }
+        else
+        {
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_3D, m_pressureTexB);
+            glUniform1i(glGetUniformLocation(pressureShader.ID, "u_pressure"), 0);
+            glBindImageTexture(2, m_pressureTexA, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+        }
+        glDispatchCompute(workGroupsX, workGroupsY, workGroupsZ);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+    }
+
+    // gradient
+    gradientShader.use();
+    glUniform3f(glGetUniformLocation(gradientShader.ID, "u_gridSize"), (float)m_width, (float)m_height, (float)m_depth);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_3D, m_velocityTexA);
+    glUniform1i(glGetUniformLocation(gradientShader.ID, "u_velocityField"), 0);
+
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_3D, m_pressureTexA);
+    glUniform1i(glGetUniformLocation(gradientShader.ID, "u_pressureField"), 1);
+
+    glBindImageTexture(2, m_velocityTexB, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA32F); // Write to velocity B
+
+    glDispatchCompute(workGroupsX, workGroupsY, workGroupsZ);
+    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+    swapVelocityBuffers();
+
+    // advect
+    advectShader.use();
+
+    glUniform3f(glGetUniformLocation(advectShader.ID, "u_gridSize"), (float)m_width, (float)m_height, (float)m_depth);
+    glUniform1f(glGetUniformLocation(advectShader.ID, "u_dt"), dt);
+
+    // adv velo
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_3D, m_velocityTexA);
+    glUniform1i(glGetUniformLocation(advectShader.ID, "u_velocityField_sampler"), 0);
+
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_3D, m_velocityTexA);
+    glUniform1i(glGetUniformLocation(advectShader.ID, "u_quantityToMove_sampler"), 1);
+
+    glBindImageTexture(2, m_velocityTexB, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+
+    glDispatchCompute(workGroupsX, workGroupsY, workGroupsZ);
+    glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT | GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+    swapVelocityBuffers(); // res->veloTexA
+
+    // adv dens
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_3D, m_velocityTexA);
+    glUniform1i(glGetUniformLocation(advectShader.ID, "u_velocityField_sampler"), 0);
+
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_3D, m_densityTexA);
+    glUniform1i(glGetUniformLocation(advectShader.ID, "u_quantityToMove_sampler"), 1);
+
+    glBindImageTexture(2, m_densityTexB, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+
+    glDispatchCompute(workGroupsX, workGroupsY, workGroupsZ);
+    glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT | GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+    swapDensityBuffers(); // res->densTexA
+
+
+
+
+
+    // TODO: PROJ
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }

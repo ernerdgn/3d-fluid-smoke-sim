@@ -131,12 +131,16 @@ int main()
 	Shader clearShader("clear.comp");
 	Shader splatShader("splat.comp");
 	Shader wireframeShader("wireframe.vert", "wireframe.frag");
-	Shader advectShader("quad.vert", "advect3d.frag");
+	Shader advectShader("advect.comp");
+	Shader diffuseShader("diffuse.comp");
+	Shader divergenceShader("divergence.comp");
+	Shader pressureShader("pressure.comp");
+	Shader gradientShader("gradient.comp");
 
 	// create 3d grid
-	const int GRID_WIDTH = 128;
-	const int GRID_HEIGHT = 128;
-	const int GRID_DEPTH = 128;
+	const int GRID_WIDTH = 64;
+	const int GRID_HEIGHT = 64;
+	const int GRID_DEPTH = 64;
 	GpuGrid3D gpuGrid(GRID_WIDTH, GRID_HEIGHT, GRID_DEPTH);
 
 	// clear grid
@@ -144,16 +148,19 @@ int main()
 
 	
 	glm::vec3 camera_pos = glm::vec3(.0, .0, 3.0); // cam pos const
-	float dt = .1; // delta time
 	glm::vec2 total_rotation = glm::vec2(.0f); // mouse rotation
 	glm::vec2 last_mouse_pos_cam = glm::vec2(.0f);
 	float rotation_speed = .1f;
+	float dt = .016f;  // delta time
+
+	float viscosity = .000001f;
+	int diffuse_iterations = 4;
+
+	int pressure_iterations = 4;
 
 
 	////////
 	double last_frame_time = glfwGetTime();
-	float viscosity = .0001f;
-	int diffuse_iterations = 20;
 
 	glfwSetKeyCallback(window, [](GLFWwindow* window, int key, int scancode, int action, int mods)
 	{
@@ -273,9 +280,10 @@ int main()
 		glm::vec3 mouse_vel3D = glm::vec3(mouse_vel2D.x, -mouse_vel2D.y, 0.0f) * 5.0f;
 
 		/////////////////////////////////////////////////////
-		gpuGrid.step(splatShader,
-			mouse_pos3D, mouse_vel3D,
-			mouse.left_pressed);
+		gpuGrid.step(splatShader, advectShader, diffuseShader,
+			divergenceShader, pressureShader, gradientShader, // Add shaders
+			mouse_pos3D, mouse_vel3D, mouse.left_pressed, dt,
+			viscosity, diffuse_iterations, pressure_iterations);
 		/////////////////////////////////////////////////////
 		// cam rotation
 		if (mouse.right_pressed)

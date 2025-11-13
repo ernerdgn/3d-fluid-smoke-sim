@@ -140,9 +140,12 @@
     <ClInclude Include="shader.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="advect3d.frag" />
+    <None Include="advect.comp" />
     <None Include="clear.comp" />
-    <None Include="diffuse3d.frag" />
+    <None Include="diffuse.comp" />
+    <None Include="divergence.comp" />
+    <None Include="gradient.comp" />
+    <None Include="pressure.comp" />
     <None Include="raymarch.frag" />
     <None Include="raymarch.vert" />
     <None Include="advect.frag" />
@@ -156,7 +159,6 @@
     <None Include="quad.vert" />
     <None Include="splat.comp" />
     <None Include="splat.frag" />
-    <None Include="splat3d.frag" />
     <None Include="vorticity.frag" />
     <None Include="wireframe.frag" />
     <None Include="wireframe.vert" />
